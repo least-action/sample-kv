@@ -1,13 +1,13 @@
-CC = g++
-CXXFLAGS = -std=c++11 -Wall -O2
+CC = gcc
+CFLAGS = -std=c99 -Wall -O2
 OBJS = main.o
 
-main.o: main.c
-	$(CC) $(CXXFLAGS) -c main.c
+build: $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o a.out
 
-main: $(OBJS)
-	$(CC) $(CXXFLAGS) $(OBJS) -o main.out
+main.o: main.c
+	$(CC) $(CFLAGS) -c main.c
 
 clean:
-	rm -r $(OBJS) main
+	rm -r $(OBJS) a.out
 
