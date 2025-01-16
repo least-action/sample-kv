@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 
 #define PORT 1234
+#define BUFFER_SIZE 64
 
 int main()
 {
@@ -12,7 +14,7 @@ int main()
     int server_fd, client_fd;
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);
-
+    char buffer[BUFFER_SIZE];
   
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
@@ -30,7 +32,7 @@ int main()
         exit(EXIT_FAILURE);
     }
 
-    if (listen(server_fd, 3) < 0) {
+    if (listen(server_fd, 1) < 0) {
         perror("failed to listen");
         close(server_fd);
         exit(EXIT_FAILURE);
@@ -45,6 +47,20 @@ int main()
             continue;
         }
         printf("client connected from: %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+
+        while (1) {
+            memset(buffer, 0, BUFFER_SIZE);
+            int bytes_read = read(client_fd, buffer, BUFFER_SIZE - 1);
+            if (bytes_read <= 0) {
+                printf("client disconnected\n");
+                break;
+            }
+
+            if (write(client_fd, buffer, bytes_read) != bytes_read) {
+                perror("failed to write");
+                break;
+            }
+        }
 
         close(client_fd);
     }
