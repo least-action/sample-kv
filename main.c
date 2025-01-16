@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/epoll.h>
 
 #define PORT 1234
 #define BUFFER_SIZE 64
@@ -15,10 +16,17 @@ int main()
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr);
     char buffer[BUFFER_SIZE];
+
+    int epfd = epoll_create1(EPOLL_CLOEXEC);
+    if (epfd < 0) {
+        perror("epoll_create1 error");
+        exit(EXIT_FAILURE);
+    }
   
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
         perror("failed to create server socket");
+        close(epfd);
         exit(EXIT_FAILURE);
     }
 
@@ -29,12 +37,14 @@ int main()
     if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("failed to bind");
         close(server_fd);
+        close(epfd);
         exit(EXIT_FAILURE);
     }
 
     if (listen(server_fd, 1) < 0) {
         perror("failed to listen");
         close(server_fd);
+        close(epfd);
         exit(EXIT_FAILURE);
     }
 
@@ -66,6 +76,7 @@ int main()
     }
 
     close(server_fd);
+    close(epfd);
 
     printf("server sucessfully terminated.\n");
 
