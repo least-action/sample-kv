@@ -4,9 +4,13 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/epoll.h>
+#include <stddef.h>
+
+#include "command.h"
 
 #define PORT 1234
 #define BUFFER_SIZE 64
+#define RESULT_SIZE 64
 
 #define MAX_EVENTS 64
 
@@ -18,6 +22,8 @@ int main()
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof (client_addr);
     char buffer[BUFFER_SIZE];
+    char result[RESULT_SIZE];
+    size_t result_len;
 
     struct epoll_event set_event;
     int epfd;
@@ -97,6 +103,13 @@ int main()
                     inet_ntoa (client_addr.sin_addr),
                     ntohs (client_addr.sin_port)
                 );
+
+                if (write (client_fd, "kv> ", 4) < 4) {
+                    perror ("failed to write");
+                    epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
+                    close (client_fd);
+                    printf ("client disconnected\n");
+                }
             }
            
             else {
@@ -110,7 +123,16 @@ int main()
                     continue;
                 }
 
-                if (write (client_fd, buffer, bytes_read) != bytes_read) {
+                result_len = run_command(buffer, result);
+
+                if (write (client_fd, result, result_len) < result_len) {
+                    perror ("failed to write");
+                    epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
+                    close (client_fd);
+                    printf ("client disconnected\n");
+                }
+
+                if (write (client_fd, "kv> ", 4) < 4) {
                     perror ("failed to write");
                     epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
                     close (client_fd);
