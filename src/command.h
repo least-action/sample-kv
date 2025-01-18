@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-size_t run_command(char *, char *);
+void run_command(char *, char *);
 
 #endif
 

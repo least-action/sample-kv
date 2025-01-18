@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include "command.h"
+#include "hash.h"
 
 #define PORT 1234
 #define BUFFER_SIZE 64
@@ -78,7 +79,9 @@ int main()
     }
   
 
-    printf("server is running on port %d\n", PORT);
+    printf ("server is running on port %d\n", PORT);
+
+    hash_init_table (&ht);
 
     while (1) {
         e_count = epoll_wait (epfd, events, MAX_EVENTS, -1);
@@ -124,7 +127,10 @@ int main()
                 }
 
                 // todo: when received data partially
-                result_len = run_command(buffer, result);
+                run_command(buffer, result);
+                if (result[0] != '\0')
+                    strcpy(result + strlen(result), "\r\n");
+                result_len = strlen(result) + 1;
 
                 if (write (client_fd, result, result_len) < result_len) {
                     perror ("failed to write");
