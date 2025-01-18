@@ -123,6 +123,7 @@ int main()
                     continue;
                 }
 
+                // todo: when received data partially
                 result_len = run_command(buffer, result);
 
                 if (write (client_fd, result, result_len) < result_len) {
