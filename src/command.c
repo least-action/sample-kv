@@ -37,6 +37,14 @@ bool is_command_del(char* command)
         && (command[3] == ' ');
 }
 
+int get_value_start(char* command)
+{
+    // todo: check value is valid string
+    int cur = 4;
+    while (command[cur++] != ' ');
+    return cur;
+}
+
 void run_command(char* command, char* result)
 {
     char* buffer;
@@ -46,11 +54,19 @@ void run_command(char* command, char* result)
     }
 
     else if (is_command_get(command)) {
+        command[strlen(command)-2] = '\0';
         buffer = hash_get_value(&ht, command+4);
         strcpy(result, buffer);
     }
     else if (is_command_set(command)) {
-        strcpy(result, "OK");
+        int value_start = get_value_start(command);
+        command[value_start-1] = '\0';
+        char *key = command+4;
+        char *value = command + value_start;
+        value[strlen(value)-2] = '\0';
+        
+        buffer = hash_set_value(&ht, key, value);
+        strcpy(result, buffer);
     }
     else if (is_command_del(command)) {
         strcpy(result, "1");

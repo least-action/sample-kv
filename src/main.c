@@ -128,6 +128,7 @@ int main()
                 }
 
                 // todo: when received data partially
+                buffer[bytes_read] = '\0';
                 run_command(buffer, result);
                 if (result[0] != '\0')
                     strcpy(result + strlen(result), "\r\n");

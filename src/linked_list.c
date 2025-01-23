@@ -17,6 +17,11 @@ struct kv_linked_list {
 };
 
 
+size_t kv_ll_sizeof (void)
+{
+    return sizeof (struct kv_linked_list);
+}
+
 void kv_ll_init (struct kv_linked_list *ll)
 {
     ll->head = NULL;
