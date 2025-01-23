@@ -75,12 +75,12 @@ void kv_ll_add(struct kv_linked_list *ll, void *void_data, size_t data_size)
     }   
 }
 
-void kv_ll_del(struct kv_linked_list *ll, void *data, bool (*is_equal) (void *, void*))
+int kv_ll_del(struct kv_linked_list *ll, void *data, bool (*is_equal) (void *, void*))
 {
     struct kv_linked_list_elem *elem;
     elem = kv_ll_find_elem (ll, data, is_equal);
     if (elem == NULL)
-        return;
+        return 0;
 
     if (elem == ll->head && elem == ll->tail) {
         ll->head = NULL;
@@ -100,5 +100,7 @@ void kv_ll_del(struct kv_linked_list *ll, void *data, bool (*is_equal) (void *, 
     }
     free (elem->data);
     free (elem);
+
+    return 1;
 }
 

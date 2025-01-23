@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+
+char* invalid_command = "invalid_command";
 // todo: use parser
 bool is_command_empty(char* command)
 {
@@ -69,10 +71,12 @@ void run_command(char* command, char* result)
         strcpy(result, buffer);
     }
     else if (is_command_del(command)) {
-        strcpy(result, "1");
+        command[strlen(command)-2] = '\0';
+        buffer = hash_del_value(&ht, command+4);
+        strcpy(result, buffer);
     }
     else {
-        strcpy(result, "Invalid command.");
+        strcpy(result, invalid_command);
     }
 }
 

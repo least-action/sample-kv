@@ -63,12 +63,10 @@ char* hash_get_value(struct kv_hash_table *table, char* key)
 
     ll = table->ll_list[hash];
     if (ll == NULL) {
-        printf("1\n");
         return get_notfound;
     }
     elem = (struct kv_hash_elem *) kv_ll_find (ll, key, elem_is_equal);
     if (elem == NULL) {
-        printf("2\n");
         return get_notfound;
     }
     return elem->value;
@@ -76,6 +74,7 @@ char* hash_get_value(struct kv_hash_table *table, char* key)
 
 char* hash_set_value(struct kv_hash_table *table, char* key, char* value)
 {
+    // todo: resize
     unsigned long hash_value = get_hash(key);
     unsigned long hash = hash_value % table->size; 
 
@@ -118,6 +117,20 @@ char* hash_set_value(struct kv_hash_table *table, char* key, char* value)
 
 char* hash_del_value(struct kv_hash_table *table, char* key)
 {
-    return del_success;
+    unsigned long hash_value = get_hash(key);
+    unsigned long hash = hash_value % table->size; 
+
+    struct kv_linked_list *ll;
+    ll = table->ll_list[hash];
+    if (ll == NULL) {
+        return del_not_found;
+    }
+
+    int result = kv_ll_del(ll, key, elem_is_equal);
+
+    if (result == 0)
+        return del_not_found;
+    else
+        return del_success;
 }
 
