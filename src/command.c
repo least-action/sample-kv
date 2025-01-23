@@ -2,6 +2,7 @@
 #include "hash.h"
 #include <string.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 // todo: use parser
 bool is_command_empty(char* command)
@@ -45,7 +46,7 @@ void run_command(char* command, char* result)
     }
 
     else if (is_command_get(command)) {
-        buffer = hash_get_value(&ht, "hi");
+        buffer = hash_get_value(&ht, command+4);
         strcpy(result, buffer);
     }
     else if (is_command_set(command)) {

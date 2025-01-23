@@ -1,4 +1,5 @@
 #include "hash.h"
+#include "linked_list.h"
 
 struct kv_hash_elem {
     char* key;
@@ -7,6 +8,7 @@ struct kv_hash_elem {
 
 struct kv_hash_table {
     unsigned long size;
+    
 };
 
 
@@ -29,7 +31,7 @@ unsigned long djb2(char* str)
 
 void hash_init_table(struct kv_hash_table *table)
 {
-    table->size = 1000;
+    table->size = 1024;
 }
 
 unsigned long get_hash(char* str)
@@ -39,7 +41,9 @@ unsigned long get_hash(char* str)
 
 char* hash_get_value(struct kv_hash_table *table, char* key)
 {
-    //unsigned long hash = get_hash(key);
+    unsigned long hash_value = get_hash(key);
+    unsigned long hash = hash_value % table->size; 
+
     return set_result;
 }
 

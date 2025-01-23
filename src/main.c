@@ -118,6 +118,7 @@ int main()
             else {
                 client_fd = events[i].data.fd;
                 memset (buffer, 0, BUFFER_SIZE);
+                // todo: when user send more than BUFFER_SIZE
                 int bytes_read = read (client_fd, buffer, BUFFER_SIZE - 1);
                 if (bytes_read <= 0) {
                     epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
