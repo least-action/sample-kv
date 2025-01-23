@@ -16,11 +16,13 @@ struct kv_linked_list {
     struct kv_linked_list_elem *tail;
 };
 
-void kv_ll_init(struct kv_linked_list *ll)
+
+void kv_ll_init (struct kv_linked_list *ll)
 {
     ll->head = NULL;
     ll->tail = NULL;
 }
+
 
 bool kv_ll_is_empty(struct kv_linked_list *ll)
 {
