@@ -9,6 +9,7 @@
 #include "command.h"
 #include "hash.h"
 
+// todo: port from arg
 #define PORT 1234
 #define BUFFER_SIZE 64
 #define RESULT_SIZE 64
@@ -18,6 +19,8 @@
 int main()
 {
     printf ("program started.\n");
+
+    // todo: separate server logic to another file
 
     int server_fd, client_fd;
     struct sockaddr_in server_addr, client_addr;
