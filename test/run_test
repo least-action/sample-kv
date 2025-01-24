@@ -1,0 +1,20 @@
+#!/bin/bash
+
+HOME_PATH=$1
+SERVER_PROGRAM=$2
+TEST_DIR=$3
+SERVER_PORT=1234
+
+$HOME_PATH/$SERVER_PROGRAM > /dev/null 2>&1 &
+pid=$!
+
+while ! nc -z localhost $SERVER_PORT; do   
+    sleep 0.1
+done
+
+python3 -m unittest discover -s $HOME_PATH/$TEST_DIR/ -p '*_test.py'
+
+kill $pid
+
+echo "server with PID $pid has been terminated."
+

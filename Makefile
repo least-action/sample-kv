@@ -4,10 +4,13 @@ OBJS = main.o
 
 SRC_DIR = src
 BUILD_DIR = build
+TEST_DIR = test
 TARGET = a.out
 
 SRC_FILES = $(wildcard $(SRC_DIR)/*.c)
 OBJ_FILES = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC_FILES))
+
+.PHONY: test
 
 all: $(TARGET)
 
@@ -19,6 +22,9 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+test:
+	$(TEST_DIR)/run_test $(shell pwd) $(TARGET) $(TEST_DIR)
+
 clean:
-	rm -rf $(BUILD_DIR) $(TARGET)
+	rm -rf $(BUILD_DIR) $(TARGET) $(TEST_DIR)/__pycache__
 
