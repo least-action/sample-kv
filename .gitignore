@@ -232,3 +232,9 @@ cython_debug/
 
 ########## test files ##########
 test/results/*
+
+
+
+########## other ##########
+*.swp
+

@@ -18,8 +18,8 @@ struct kv_hash_table ht;
 
 char* get_notfound = "(nil)";
 char* set_success = "OK";
-char* del_success = "Deleted";
-char* del_not_found = "Not found";
+char* del_success = "1";
+char* del_not_found = "0";
 
 unsigned long djb2(char* str)
 {
