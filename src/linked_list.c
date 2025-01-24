@@ -14,6 +14,7 @@ struct kv_linked_list_elem {
 struct kv_linked_list {
     struct kv_linked_list_elem *head;
     struct kv_linked_list_elem *tail;
+    size_t elem_count;
 };
 
 
@@ -22,10 +23,16 @@ size_t kv_ll_sizeof (void)
     return sizeof (struct kv_linked_list);
 }
 
+size_t kv_ll_count (struct kv_linked_list *ll)
+{
+    return ll->elem_count;
+}
+
 void kv_ll_init (struct kv_linked_list *ll)
 {
     ll->head = NULL;
     ll->tail = NULL;
+    ll->elem_count = 0;
 }
 
 
@@ -67,12 +74,13 @@ void kv_ll_add(struct kv_linked_list *ll, void *void_data, size_t data_size)
         ll->tail = elem;
         elem->prev = NULL;
         elem->next = NULL;
-    }   
+    }
     else {
         elem->prev = ll->tail;
         ll->tail->next = elem;
         ll->tail = elem;
-    }   
+    }
+    ++(ll->elem_count);
 }
 
 int kv_ll_del(struct kv_linked_list *ll, void *data, bool (*is_equal) (void *, void*))
@@ -98,6 +106,7 @@ int kv_ll_del(struct kv_linked_list *ll, void *data, bool (*is_equal) (void *, v
         elem->prev->next = elem->next;
         elem->next->prev = elem->prev;
     }
+    --(ll->elem_count);
     free (elem->data);
     free (elem);
 

@@ -12,6 +12,7 @@ bool is_command_empty(char* command)
     return (strlen(command) == 2) && (command[0] == '\r') && (command[1] == '\n');
 }
 
+// todo: add delete all command
 bool is_command_get(char* command)
 {
     return (strlen(command) > 4)

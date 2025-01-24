@@ -16,8 +16,10 @@ struct kv_hash_table {
 
 struct kv_hash_table ht;
 
+// todo: separate output format from this file
 char* get_notfound = "(nil)";
 char* set_success = "OK";
+char* set_failed = "Fail";
 char* del_success = "1";
 char* del_not_found = "0";
 
@@ -34,7 +36,7 @@ unsigned long djb2(char* str)
 
 void hash_init_table(struct kv_hash_table *table)
 {
-    table->size = 1024;
+    table->size = 2;
     table->ll_list = (struct kv_linked_list **) malloc (sizeof (void*) * table->size);
     memset(table->ll_list, '\0', table->size);
 }
@@ -95,6 +97,9 @@ char* hash_set_value(struct kv_hash_table *table, char* key, char* value)
         ll = (struct kv_linked_list *) malloc (kv_ll_sizeof ());
         kv_ll_init (ll);
         table->ll_list[hash] = ll;
+    }
+    if (kv_ll_count (ll) > 5) {
+        return set_failed;
     }
 
     elem = (struct kv_hash_elem *) kv_ll_find (ll, key, elem_is_equal);
