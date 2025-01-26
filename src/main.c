@@ -7,7 +7,7 @@
 #include <stddef.h>
 
 #include "command.h"
-#include "hash.h"
+#include "kv_hash.h"
 
 // todo: port from arg
 #define PORT 1234
@@ -84,7 +84,8 @@ int main()
 
     printf ("server is running on port %d\n", PORT);
 
-    hash_init_table (&ht);
+    struct kv_ht *ht;
+    ht = kv_ht_create (2);
 
     while (1) {
         e_count = epoll_wait (epfd, events, MAX_EVENTS, -1);
@@ -132,7 +133,7 @@ int main()
 
                 // todo: when received data partially
                 buffer[bytes_read] = '\0';
-                run_command(buffer, result);
+                run_command(ht, buffer, result);
                 if (result[0] != '\0')
                     strcpy(result + strlen(result), "\r\n");
                 result_len = strlen(result) + 1;

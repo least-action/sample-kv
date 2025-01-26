@@ -1,11 +1,16 @@
 #include "command.h"
-#include "hash.h"
+#include "kv_hash.h"
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
 
 
 char* invalid_command = "invalid_command";
+char* get_notfound = "(nil)";
+char* set_success = "OK";
+char* del_success = "1";
+char* del_not_found = "0";
+
 // todo: use parser
 bool is_command_empty(char* command)
 {
@@ -48,9 +53,10 @@ int get_value_start(char* command)
     return cur;
 }
 
-void run_command(char* command, char* result)
+void run_command(struct kv_ht *ht, char* command, char* result)
 {
-    char* buffer;
+    char *get_result;
+    int del_result;
 
     if (is_command_empty(command)) {
         strcpy(result, "");
@@ -58,8 +64,11 @@ void run_command(char* command, char* result)
 
     else if (is_command_get(command)) {
         command[strlen(command)-2] = '\0';
-        buffer = hash_get_value(&ht, command+4);
-        strcpy(result, buffer);
+        get_result = kv_ht_get (ht, command+4);
+        if (get_result == NULL)
+            strcpy (result, get_notfound);
+        else
+            strcpy (result, get_result);
     }
     else if (is_command_set(command)) {
         int value_start = get_value_start(command);
@@ -68,13 +77,16 @@ void run_command(char* command, char* result)
         char *value = command + value_start;
         value[strlen(value)-2] = '\0';
         
-        buffer = hash_set_value(&ht, key, value);
-        strcpy(result, buffer);
+        kv_ht_set (ht, key, value);
+        strcpy(result, set_success);
     }
     else if (is_command_del(command)) {
         command[strlen(command)-2] = '\0';
-        buffer = hash_del_value(&ht, command+4);
-        strcpy(result, buffer);
+        del_result = kv_ht_del (ht, command+4);
+        if (del_result == 0)
+            strcpy (result, del_not_found);
+        else
+            strcpy (result, del_success);
     }
     else {
         strcpy(result, invalid_command);

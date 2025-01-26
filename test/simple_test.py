@@ -31,10 +31,12 @@ class GetSetDelTest(unittest.TestCase):
         return data
 
     def test_get(self):
+        print("test_get start")
         data = self.send_and_recv(b'get 1\r\n')
         self.assertEqual(b'(nil)\r\n\x00', data)
 
     def test_set(self):
+        print("test_set start")
         data = self.send_and_recv(b'set 2 a\r\n')
         self.assertEqual(b'OK\r\n\x00', data)
 
@@ -42,6 +44,7 @@ class GetSetDelTest(unittest.TestCase):
         self.assertEqual(b'a\r\n\x00', data)
 
     def test_del(self):
+        print("test_del start")
         data = self.send_and_recv(b'del 3\r\n')
         self.assertEqual(b'0\r\n\x00', data)
 

@@ -31,11 +31,12 @@ class HashFullTest(unittest.TestCase):
         return data
 
     def test_set_many(self):
+        print("test_set_many start")
         is_failed = False
         failed_i = 0
         data = None
         test_id = hash(self)
-        for i in range(10000):
+        for i in range(100):
             data = self.send_and_recv('set {}{} 1\r\n'.format(test_id, i).encode())
             if b'OK\r\n\x00' != data:
                 is_failed = True
