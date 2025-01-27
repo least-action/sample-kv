@@ -111,7 +111,7 @@ int main()
                     ntohs (client_addr.sin_port)
                 );
 
-                if (write (client_fd, "kv> ", 4) < 4) {
+                if (write (client_fd, "connected\r\n", 11) < 11) {
                     perror ("failed to write");
                     epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
                     close (client_fd);
@@ -139,13 +139,6 @@ int main()
                 result_len = strlen(result) + 1;
 
                 if (write (client_fd, result, result_len) < result_len) {
-                    perror ("failed to write");
-                    epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
-                    close (client_fd);
-                    printf ("client disconnected\n");
-                }
-
-                if (write (client_fd, "kv> ", 4) < 4) {
                     perror ("failed to write");
                     epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
                     close (client_fd);

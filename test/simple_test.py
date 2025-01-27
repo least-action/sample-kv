@@ -10,20 +10,21 @@ class GetSetDelTest(unittest.TestCase):
             # todo: port has to be from arg
             cls._socket.connect(("localhost", 1234))
             cls._socket.settimeout(1)
+            data = b''
+            while not data.endswith(b'connected\r\n'):
+                chunk = cls._socket.recv(1024)
+                data += chunk
         except OSError as e:
+            cls._set_up_error_msg = e.msg
             cls._set_up_error = True
 
     def setUp(self):
         if self._set_up_error:
-            self.fail('set up error')
+            self.fail('set up error: {}'.format(self._set_up_error_msg))
 
     def send_and_recv(self, binary_data):
-        data = b''
-        while not data.endswith(b'kv> '):
-            chunk = self._socket.recv(1024)
-            data += chunk
-
         self._socket.sendall(binary_data)
+
         data = b''
         while not data.endswith(b'\r\n\x00'):
             chunk = self._socket.recv(1024)

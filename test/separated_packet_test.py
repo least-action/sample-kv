@@ -1,7 +1,7 @@
 import unittest
 import socket
 
-class HashFullTest(unittest.TestCase):
+class SeparatedPacketTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._set_up_error = False
@@ -21,33 +21,36 @@ class HashFullTest(unittest.TestCase):
         if self._set_up_error:
             self.fail('set up error')
 
-    def send_and_recv(self, binary_data):
+    def send(self, binary_data):
         self._socket.sendall(binary_data)
 
+    def receive(self):
+        try_count = 0
         data = b''
         while not data.endswith(b'\r\n\x00'):
+            if try_count > 100:
+                raise Exception ("excceded limit try count")
             chunk = self._socket.recv(1024)
             data += chunk
+            try_count += 1
         return data
 
-    def test_set_many(self):
-        print("test_set_many start")
-        is_failed = False
-        failed_i = 0
-        data = None
-        test_id = hash(self)
-        for i in range(100):
-            data = self.send_and_recv('set {}{} 1\r\n'.format(test_id, i).encode())
-            if b'OK\r\n\x00' != data:
-                is_failed = True
-                failed_i = i
-                break
-        for i in range(failed_i):
-            self.send_and_recv('del {}{}\r\n'.format(test_id, i).encode())
+    def test_separated_packet(self):
+        print("test_separated_packet start")
+        self.send(b'get ab')
+        self.send(b'cd\r\n')
+        data = self.receive()
+        self.assertEqual(b'(nil)\r\n\x00', data)
 
-        if is_failed:
-            self.fail("failed on {} with {}".format(i, data))
+        self.send(b'set ab')
+        self.send(b'cd wxyz\r\n')
+        data = self.receive()
+        self.assertEqual(b'OK\r\n\x00', data)
 
+        self.send(b'get ab')
+        self.send(b'cd\r\n')
+        data = self.receive()
+        self.assertEqual(b'wxyz\r\n\x00', data)
 
     @classmethod
     def tearDownClass(cls):
