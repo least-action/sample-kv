@@ -6,6 +6,7 @@ TEST_DIR=$3
 SERVER_PORT=1234
 
 $HOME_PATH/$SERVER_PROGRAM > /dev/null 2>&1 &
+#$HOME_PATH/$SERVER_PROGRAM &
 pid=$!
 
 while ! nc -z localhost $SERVER_PORT; do   

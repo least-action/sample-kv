@@ -2,66 +2,71 @@ import unittest
 import socket
 
 class GetSetDelTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls._set_up_error = False
+    def setUp(self):
         try:
-            cls._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             # todo: port has to be from arg
-            cls._socket.connect(("localhost", 1234))
-            cls._socket.settimeout(1)
+            self._socket.connect(("localhost", 1234))
+            self._socket.settimeout(1)
             data = b''
             while not data.endswith(b'connected\r\n'):
-                chunk = cls._socket.recv(1024)
+                chunk = self._socket.recv(1024)
                 data += chunk
         except OSError as e:
-            cls._set_up_error_msg = e.msg
-            cls._set_up_error = True
+            self.fail('set up error')
 
-    def setUp(self):
-        if self._set_up_error:
-            self.fail('set up error: {}'.format(self._set_up_error_msg))
-
-    def send_and_recv(self, binary_data):
+    def send(self, binary_data):
         self._socket.sendall(binary_data)
 
+    def receive(self):
+        try_count = 0
         data = b''
         while not data.endswith(b'\r\n\x00'):
+            if try_count > 100:
+                raise Exception ("excceded limit try count")
             chunk = self._socket.recv(1024)
             data += chunk
+            try_count += 1
         return data
 
     def test_get(self):
         print("test_get start")
-        data = self.send_and_recv(b'get 1\r\n')
+        self.send(b'get 1\r\n')
+        data = self.receive()
         self.assertEqual(b'(nil)\r\n\x00', data)
 
     def test_set(self):
         print("test_set start")
-        data = self.send_and_recv(b'set 2 a\r\n')
+        self.send(b'set 2 a\r\n')
+        data = self.receive()
         self.assertEqual(b'OK\r\n\x00', data)
 
-        data = self.send_and_recv(b'get 2\r\n')
+        data = self.send(b'get 2\r\n')
+        data = self.receive()
         self.assertEqual(b'a\r\n\x00', data)
 
     def test_del(self):
         print("test_del start")
-        data = self.send_and_recv(b'del 3\r\n')
+        data = self.send(b'del 3\r\n')
+        data = self.receive()
         self.assertEqual(b'0\r\n\x00', data)
 
-        data = self.send_and_recv(b'set 3 b\r\n')
+        data = self.send(b'set 3 b\r\n')
+        data = self.receive()
         self.assertEqual(b'OK\r\n\x00', data)
 
-        data = self.send_and_recv(b'get 3\r\n')
+        data = self.send(b'get 3\r\n')
+        data = self.receive()
         self.assertEqual(b'b\r\n\x00', data)
 
-        data = self.send_and_recv(b'del 3\r\n')
+        data = self.send(b'del 3\r\n')
+        data = self.receive()
         self.assertEqual(b'1\r\n\x00', data)
 
-        data = self.send_and_recv(b'get 3\r\n')
+        data = self.send(b'get 3\r\n')
+        data = self.receive()
         self.assertEqual(b'(nil)\r\n\x00', data)
 
-    @classmethod
-    def tearDownClass(cls):
-        cls._socket.close()
+    def tearDown(self):
+        self._socket.close()
 

@@ -27,13 +27,27 @@ bool is_command_get(char* command)
         && (command[3] == ' ');
 }
 
+int space_count (char *command)
+{
+    int count = 0;
+    int idx = 0;
+    char c;
+
+    while ((c = command[idx++])) {
+        if (c == ' ')
+            ++count;
+    }
+    return count;
+}
+
 bool is_command_set(char* command)
 {
     return (strlen(command) > 4)
         && (command[0] == 's')
         && (command[1] == 'e')
         && (command[2] == 't')
-        && (command[3] == ' ');
+        && (command[3] == ' ')
+        && (space_count (command) == 2);
 }
 
 bool is_command_del(char* command)
@@ -51,6 +65,36 @@ int get_value_start(char* command)
     int cur = 4;
     while (command[cur++] != ' ');
     return cur;
+}
+
+int find_end_of_command (char *buffer)
+{
+    int size = strlen (buffer);
+    if (size < 2)
+        return -1;
+
+    for (int i = 0; i < size - 1; ++i) {
+        if (buffer[i] == '\r' && buffer[i+1] == '\n')
+            return i+1;
+    }
+
+    return -1;
+}
+
+int consume_command(struct kv_ht *ht, char *command, char *result)
+{
+    int end_of_command = find_end_of_command (command);
+    if (end_of_command == -1)
+        return 0;
+
+    char temp[64];
+    memcpy (temp, command, 64);
+    memset (command, 0, 64);
+    memcpy (command, temp + end_of_command + 1, strlen (temp) - end_of_command - 1);
+    temp[end_of_command + 1] = '\0';
+
+    run_command (ht, temp, result);
+    return 1;
 }
 
 void run_command(struct kv_ht *ht, char* command, char* result)

@@ -2,32 +2,31 @@ import unittest
 import socket
 
 class HashFullTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls._set_up_error = False
+    def setUp(self):
         try:
-            cls._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             # todo: port has to be from arg
-            cls._socket.connect(("localhost", 1234))
-            cls._socket.settimeout(1)
+            self._socket.connect(("localhost", 1234))
+            self._socket.settimeout(1)
             data = b''
             while not data.endswith(b'connected\r\n'):
-                chunk = cls._socket.recv(1024)
+                chunk = self._socket.recv(1024)
                 data += chunk
         except OSError as e:
-            cls._set_up_error = True
-
-    def setUp(self):
-        if self._set_up_error:
             self.fail('set up error')
 
-    def send_and_recv(self, binary_data):
+    def send(self, binary_data):
         self._socket.sendall(binary_data)
 
+    def receive(self):
+        try_count = 0
         data = b''
         while not data.endswith(b'\r\n\x00'):
+            if try_count > 100:
+                raise Exception ("excceded limit try count")
             chunk = self._socket.recv(1024)
             data += chunk
+            try_count += 1
         return data
 
     def test_set_many(self):
@@ -37,7 +36,8 @@ class HashFullTest(unittest.TestCase):
         data = None
         test_id = hash(self)
         for i in range(100):
-            data = self.send_and_recv('set {}{} 1\r\n'.format(test_id, i).encode())
+            self.send('set {}{} 1\r\n'.format(test_id, i).encode())
+            data = self.receive()
             if b'OK\r\n\x00' != data:
                 is_failed = True
                 failed_i = i
@@ -48,8 +48,6 @@ class HashFullTest(unittest.TestCase):
         if is_failed:
             self.fail("failed on {} with {}".format(i, data))
 
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._socket.close()
+    def tearDown(self):
+        self._socket.close()
 

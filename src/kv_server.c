@@ -14,16 +14,23 @@
 #define RESULT_SIZE 64
 #define MAX_EVENTS 64
 
+static int count;
 static struct kv_ht *ht;
 static int epfd;
 
 struct handler_context {
     int client_fd;
     char buffer[BUFFER_SIZE];
+    /*
+     * command
+     * [s][e][t][ ][a][b][c][\0]
+     *                        ^
+     *                        idx(==7) = command_cur 
+     */
     char command[COMMAND_SIZE];
     int command_cur;
     char result[RESULT_SIZE];
-    struct handler_context *prev;  // todo: optimize O(n)
+    struct handler_context *prev;  // todo: perf: optimize O(n)
     struct handler_context *next;
 };
 
@@ -72,19 +79,6 @@ void remove_client (int client_fd)
     free (elem);
 }
 
-int find_end_of_command (char *buffer, int size)
-{
-    if (size < 2)
-        return -1;
-
-    for (int i = 0; i < size - 1; ++i) {
-        if (buffer[i] == '\r' && buffer[i+1] == '\n')
-            return i+1;
-    }
-
-    return -1;
-}
-
 void handle_client (int client_fd)
 {
     struct handler_context *elem;
@@ -98,7 +92,7 @@ void handle_client (int client_fd)
         exit (1);
     }
 
-    // todo: when user send more than BUFFER_SIZE
+    // todo: bug: when user send more than BUFFER_SIZE
     memset (elem->buffer, 0, BUFFER_SIZE);
     int bytes_read = read (client_fd, elem->buffer, BUFFER_SIZE - 1);
     if (bytes_read <= 0) {
@@ -108,20 +102,16 @@ void handle_client (int client_fd)
         printf ("client disconnected\n");
     }
 
-    // todo: when received data partially
-    int end_of_command;
-    end_of_command = find_end_of_command(elem->buffer, bytes_read);
+    // todo: bug: handle when command is longer than limit
+    memcpy (elem->command + elem->command_cur, elem->buffer, bytes_read);
+    elem->command_cur += bytes_read;
+    int consume_count;
+    while (1) {
+        consume_count = consume_command (ht, elem->command, elem->result);
+        if (consume_count == 0)
+            break;
+        elem->command_cur = strlen (elem->command);
 
-    if (end_of_command == -1) {  // if command is proceeding
-        // todo: handle when command is longer than limit
-        memcpy (elem->command + elem->command_cur, elem->buffer, bytes_read);
-        elem->command_cur += bytes_read;
-        return;
-    }
-    else {  // if command is finished
-        memcpy (elem->command + elem->command_cur, elem->buffer, end_of_command + 1);
-        //elem->command[elem->command_cur + end_of_command] = '\0';
-        run_command(ht, elem->command, elem->result);
         if (elem->result[0] != '\0')
             strcpy (elem->result + strlen(elem->result), "\r\n");
         result_len = strlen (elem->result) + 1;
@@ -133,17 +123,15 @@ void handle_client (int client_fd)
             remove_client (client_fd);
             printf ("client disconnected\n");
         }
-
-        memset (elem->command, 0, COMMAND_SIZE);
-        elem->command_cur = 0;
-        memcpy (elem->command, elem->buffer + end_of_command+1, bytes_read - end_of_command - 1);
-        elem->command_cur += bytes_read - end_of_command - 1;
     }
+
+    return;
 }
 
 int kv_run_server (uint16_t port)
 {
-     int server_fd, client_fd;
+    count = 0;
+    int server_fd, client_fd;
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof (client_addr);
 
