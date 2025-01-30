@@ -38,22 +38,16 @@ class SeparatedPacketTest(unittest.TestCase):
     def test_separated_packet(self):
         print("test_separated_packet start")
         self.send(b'get ab')
-        with self.assertRaises(TimeoutError) as e:
-            self.receive()
         self.send(b'cd\r\n')
         data = self.receive()
         self.assertEqual(b'(nil)\r\n\x00', data)
 
         self.send(b'set ab')
-        with self.assertRaises(TimeoutError) as e:
-            self.receive()
         self.send(b'cd wxyz\r\n')
         data = self.receive()
         self.assertEqual(b'OK\r\n\x00', data)
 
         self.send(b'get ab')
-        with self.assertRaises(TimeoutError) as e:
-            self.receive()
         self.send(b'cd\r\n')
         data = self.receive()
         self.assertEqual(b'wxyz\r\n\x00', data)

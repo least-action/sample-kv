@@ -10,20 +10,144 @@
 #include <stddef.h>
 
 #define BUFFER_SIZE 64
+#define COMMAND_SIZE 64
 #define RESULT_SIZE 64
 #define MAX_EVENTS 64
+
+static struct kv_ht *ht;
+static int epfd;
+
+struct handler_context {
+    int client_fd;
+    char buffer[BUFFER_SIZE];
+    char command[COMMAND_SIZE];
+    int command_cur;
+    char result[RESULT_SIZE];
+    struct handler_context *prev;  // todo: optimize O(n)
+    struct handler_context *next;
+};
+
+struct handler_context *hc;
+
+void register_client (int client_fd)
+{
+    struct handler_context *last;
+    struct handler_context *new_context;
+    new_context = (struct handler_context*) malloc (sizeof (struct handler_context));
+    new_context->client_fd = client_fd;
+    memset (new_context->buffer, 0, BUFFER_SIZE);
+    memset (new_context->command, 0, COMMAND_SIZE);
+    new_context->command_cur = 0;
+    memset (new_context->result, 0, RESULT_SIZE);
+    new_context->prev = NULL;
+    new_context->next = NULL;
+    if (hc == NULL) {
+        hc = new_context;
+    }
+    else {
+        last = hc;
+        while (last->next != NULL)
+            last = last->next;
+        last->next = new_context;
+        new_context->prev = last;
+    }
+}
+
+void remove_client (int client_fd)
+{
+    struct handler_context *elem;
+    elem = hc;
+    while (elem->client_fd != client_fd) {
+        elem = elem->next;
+    }
+
+    if (elem == hc) {
+        hc = elem->next;
+        elem->prev = NULL;
+    }
+    else {
+        elem->prev->next = elem->next;
+        elem->next->prev = elem->prev;
+    }
+    free (elem);
+}
+
+int find_end_of_command (char *buffer, int size)
+{
+    if (size < 2)
+        return -1;
+
+    for (int i = 0; i < size - 1; ++i) {
+        if (buffer[i] == '\r' && buffer[i+1] == '\n')
+            return i+1;
+    }
+
+    return -1;
+}
+
+void handle_client (int client_fd)
+{
+    struct handler_context *elem;
+    size_t result_len;
+
+    elem = hc;
+    while (elem->client_fd != client_fd)
+        elem = elem->next;
+    if (elem == NULL) {
+        perror ("elem not found");
+        exit (1);
+    }
+
+    // todo: when user send more than BUFFER_SIZE
+    memset (elem->buffer, 0, BUFFER_SIZE);
+    int bytes_read = read (client_fd, elem->buffer, BUFFER_SIZE - 1);
+    if (bytes_read <= 0) {
+        epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
+        close (client_fd);
+        remove_client (client_fd);
+        printf ("client disconnected\n");
+    }
+
+    // todo: when received data partially
+    int end_of_command;
+    end_of_command = find_end_of_command(elem->buffer, bytes_read);
+
+    if (end_of_command == -1) {  // if command is proceeding
+        // todo: handle when command is longer than limit
+        memcpy (elem->command + elem->command_cur, elem->buffer, bytes_read);
+        elem->command_cur += bytes_read;
+        return;
+    }
+    else {  // if command is finished
+        memcpy (elem->command + elem->command_cur, elem->buffer, end_of_command + 1);
+        //elem->command[elem->command_cur + end_of_command] = '\0';
+        run_command(ht, elem->command, elem->result);
+        if (elem->result[0] != '\0')
+            strcpy (elem->result + strlen(elem->result), "\r\n");
+        result_len = strlen (elem->result) + 1;
+
+        if (write (client_fd, elem->result, result_len) < result_len) {
+            perror ("failed to write");
+            epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
+            close (client_fd);
+            remove_client (client_fd);
+            printf ("client disconnected\n");
+        }
+
+        memset (elem->command, 0, COMMAND_SIZE);
+        elem->command_cur = 0;
+        memcpy (elem->command, elem->buffer + end_of_command+1, bytes_read - end_of_command - 1);
+        elem->command_cur += bytes_read - end_of_command - 1;
+    }
+}
 
 int kv_run_server (uint16_t port)
 {
      int server_fd, client_fd;
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof (client_addr);
-    char buffer[BUFFER_SIZE];
-    char result[RESULT_SIZE];
-    size_t result_len;
 
     struct epoll_event set_event;
-    int epfd;
     struct epoll_event *events;
     int e_count;
 
@@ -76,7 +200,6 @@ int kv_run_server (uint16_t port)
 
     printf ("server is running on port %d\n", port);
 
-    struct kv_ht *ht;
     ht = kv_ht_create (2);
 
     while (1) {
@@ -109,32 +232,12 @@ int kv_run_server (uint16_t port)
                     close (client_fd);
                     printf ("client disconnected\n");
                 }
+
+                register_client (client_fd);
             }
            else {
                 client_fd = events[i].data.fd;
-                memset (buffer, 0, BUFFER_SIZE);
-                // todo: when user send more than BUFFER_SIZE
-                int bytes_read = read (client_fd, buffer, BUFFER_SIZE - 1);
-                if (bytes_read <= 0) {
-                    epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
-                    close (client_fd);
-                    printf ("client disconnected\n");
-                    continue;
-                }
-
-                // todo: when received data partially
-                buffer[bytes_read] = '\0';
-                run_command(ht, buffer, result);
-                if (result[0] != '\0')
-                    strcpy(result + strlen(result), "\r\n");
-                result_len = strlen(result) + 1;
-
-                if (write (client_fd, result, result_len) < result_len) {
-                    perror ("failed to write");
-                    epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
-                    close (client_fd);
-                    printf ("client disconnected\n");
-                }
+                handle_client (client_fd);
             }
         }
     }
