@@ -4,7 +4,6 @@
 #include "kv_hash.h"
 #include <stddef.h>
 
-void run_command(struct kv_ht *, char *, char *);
 int consume_command(struct kv_ht *ht, char *buffer, char *result);
 
 #endif

@@ -81,22 +81,6 @@ int find_end_of_command (char *buffer)
     return -1;
 }
 
-int consume_command(struct kv_ht *ht, char *command, char *result)
-{
-    int end_of_command = find_end_of_command (command);
-    if (end_of_command == -1)
-        return 0;
-
-    char temp[64];
-    memcpy (temp, command, 64);
-    memset (command, 0, 64);
-    memcpy (command, temp + end_of_command + 1, strlen (temp) - end_of_command - 1);
-    temp[end_of_command + 1] = '\0';
-
-    run_command (ht, temp, result);
-    return 1;
-}
-
 void run_command(struct kv_ht *ht, char* command, char* result)
 {
     char *get_result;
@@ -135,5 +119,21 @@ void run_command(struct kv_ht *ht, char* command, char* result)
     else {
         strcpy(result, invalid_command);
     }
+}
+
+int consume_command(struct kv_ht *ht, char *command, char *result)
+{
+    int end_of_command = find_end_of_command (command);
+    if (end_of_command == -1)
+        return 0;
+
+    char temp[64];
+    memcpy (temp, command, 64);
+    memset (command, 0, 64);
+    memcpy (command, temp + end_of_command + 1, strlen (temp) - end_of_command - 1);
+    temp[end_of_command + 1] = '\0';
+
+    run_command (ht, temp, result);
+    return 1;
 }
 
