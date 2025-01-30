@@ -7,6 +7,8 @@
 
 int main()
 {
+    // todo: feature: transaction
+    // todo: feature: persistence
     int server_termination_state;
 
     printf ("program started.\n");
