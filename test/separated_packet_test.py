@@ -52,6 +52,13 @@ class SeparatedPacketTest(unittest.TestCase):
         data = self.receive()
         self.assertEqual(b'wxyz\r\n\x00', data)
 
+        self.send(b'get abcd\r')
+        self.send(b'\n')
+        data = self.receive()
+        self.assertEqual(b'wxyz\r\n\x00', data)
+
+
+
     @classmethod
     def tearDownClass(cls):
         cls._socket.close()
