@@ -23,6 +23,7 @@
 int redo_log_write_fd;
 int redo_log_read_fd;
 char log_line_buf[LOG_LINE_BUF_SIZE];
+int redo_id;
 
 void kv_redo_init (void)
 {
@@ -36,6 +37,8 @@ void kv_redo_init (void)
         perror ("open redo log read");
         exit (1);
     }
+
+    redo_id = 0;
 }
 
 void kv_redo_terminate (void)
@@ -44,15 +47,20 @@ void kv_redo_terminate (void)
     close (redo_log_read_fd);
 }
 
-void len_to_digit (int len, char* buf)
+void int_to_digit (int digit_len, int integer, char* buf)
 {
     int quotient, remainder;
-    quotient = len;
-    for (int i = 0; i < 4; ++i) {
+    quotient = integer;
+    for (int i = 0; i < digit_len; ++i) {
         remainder = quotient % 10;
         quotient /= 10;
-        buf[3-i] = (char) (remainder + 48);
+        buf[digit_len-1-i] = (char) (remainder + 48);
     }
+}
+
+int get_next_redo_id (void)
+{
+    return redo_id++;
 }
 
 void kv_redo_add (enum RedoType redo_type, char *key, char *value)
@@ -61,18 +69,22 @@ void kv_redo_add (enum RedoType redo_type, char *key, char *value)
     int key_len = strlen (key);
     int val_len = value == NULL ? 0 : strlen (value);
     int cur = 0;
+    char id_digit[8];
     char key_digit[4];
     char val_digit[4];
-    len_to_digit (key_len, key_digit);
-    len_to_digit (val_len, val_digit);
+    int_to_digit (4, key_len, key_digit);
+    int_to_digit (4, val_len, val_digit);
 
     if (key_len + val_len > LOG_LINE_BUF_SIZE - 23) {
         perror ("too much long key and value");
         exit (1);
     }
 
-    memcpy (log_line_buf, "00000000 ", 9);  // todo
-    cur += 9;
+    int_to_digit (8, get_next_redo_id (), id_digit);
+    memcpy (log_line_buf, id_digit, 8);
+    cur += 8;
+    memcpy (log_line_buf + cur, " ", 1);
+    cur += 1;
 
     if (redo_type == REDO_SET)
         memcpy (log_line_buf + cur, "S ", 2);
@@ -109,7 +121,7 @@ void kv_redo_add (enum RedoType redo_type, char *key, char *value)
     cur += 2;
     log_line_buf[cur] = '\0';
 
-    nr = write (redo_log_write_fd, log_line_buf, strlen (log_line_buf));
+    nr = write (redo_log_write_fd, log_line_buf, strlen (log_line_buf) + 1);
     if (nr == -1) {
         perror ("write redo error");
         exit (1);
