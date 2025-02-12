@@ -1,5 +1,6 @@
 #include "kv_command.h"
 #include "kv_hash.h"
+#include "kv_redoundo.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,9 +15,12 @@
 #define RESULT_SIZE 64
 #define MAX_EVENTS 64
 
+#define LOG_FILE_NAME "log.kv"
+
 static int count;
 static struct kv_ht *ht;
 static int epfd;
+int write_log_fd, read_log_fd;
 
 struct handler_context {
     int client_fd;
@@ -139,6 +143,11 @@ int kv_run_server (uint16_t port)
     struct epoll_event *events;
     int e_count;
 
+    ht = kv_ht_create (2);
+
+    kv_redo_init ();
+    kv_redo_redo (ht);
+
     server_fd = socket (AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
         perror ("failed to create server socket");
@@ -188,8 +197,6 @@ int kv_run_server (uint16_t port)
 
     printf ("server is running on port %d\n", port);
 
-    ht = kv_ht_create (2);
-
     while (1) {
         e_count = epoll_wait (epfd, events, MAX_EVENTS, -1);
         if (e_count < 0) {
@@ -233,6 +240,7 @@ int kv_run_server (uint16_t port)
     free (events);
     close (epfd);
     close (server_fd);
+    kv_redo_terminate ();
 
     return 0;
 }

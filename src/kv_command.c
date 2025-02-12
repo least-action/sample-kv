@@ -1,5 +1,7 @@
 #include "kv_command.h"
 #include "kv_hash.h"
+#include "kv_redoundo.h"
+
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -105,11 +107,14 @@ void run_command(struct kv_ht *ht, char* command, char* result)
         char *value = command + value_start;
         value[strlen(value)-2] = '\0';
         
+        kv_redo_add (REDO_SET, key, value);
         kv_ht_set (ht, key, value);
         strcpy(result, set_success);
     }
     else if (is_command_del(command)) {
         command[strlen(command)-2] = '\0';
+
+        kv_redo_add (REDO_DEL, command+4, NULL);
         del_result = kv_ht_del (ht, command+4);
         if (del_result == 0)
             strcpy (result, del_not_found);

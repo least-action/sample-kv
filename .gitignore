@@ -238,3 +238,5 @@ test/results/*
 ########## other ##########
 *.swp
 
+redo_log.kvdb
+
