@@ -44,48 +44,70 @@ void kv_redo_terminate (void)
     close (redo_log_read_fd);
 }
 
+void len_to_digit (int len, char* buf)
+{
+    int quotient, remainder;
+    quotient = len;
+    for (int i = 0; i < 4; ++i) {
+        remainder = quotient % 10;
+        quotient /= 10;
+        buf[3-i] = (char) (remainder + 48);
+    }
+}
+
 void kv_redo_add (enum RedoType redo_type, char *key, char *value)
 {
     ssize_t nr;
     int key_len = strlen (key);
     int val_len = value == NULL ? 0 : strlen (value);
     int cur = 0;
+    char key_digit[4];
+    char val_digit[4];
+    len_to_digit (key_len, key_digit);
+    len_to_digit (val_len, val_digit);
 
     if (key_len + val_len > LOG_LINE_BUF_SIZE - 23) {
         perror ("too much long key and value");
         exit (1);
     }
 
-    if (redo_type == REDO_SET) {
-        memcpy (log_line_buf, "00000000 ", 9);  // todo
-        cur += 9;
+    memcpy (log_line_buf, "00000000 ", 9);  // todo
+    cur += 9;
+
+    if (redo_type == REDO_SET)
         memcpy (log_line_buf + cur, "S ", 2);
-        cur += 2;
-        memcpy (log_line_buf + cur, "0000 0000 ", 10); // todo
-        cur += 10;
+    else
+        memcpy (log_line_buf + cur, "D ", 2);
+    cur += 2;
+
+    memcpy (log_line_buf + cur, key_digit, 4);
+    cur += 4;
+    memcpy (log_line_buf + cur, " ", 1);
+    cur += 1;
+
+    memcpy (log_line_buf + cur, val_digit, 4);
+    cur += 4;
+    memcpy (log_line_buf + cur, " ", 1);
+    cur += 1;
+ 
+
+    if (redo_type == REDO_SET) {
         memcpy (log_line_buf + cur, key, key_len);
         cur += key_len;
         memcpy (log_line_buf + cur, " ", 1);
         cur += 1;
+
         memcpy (log_line_buf + cur, value, val_len);
         cur += val_len;
-        memcpy (log_line_buf + cur, "\r\n", 2);
-        cur += 2;
-        log_line_buf[cur] = '\0';
     }
     else {
-        memcpy (log_line_buf, "00000000 ", 9);  // todo
-        cur += 9;
-        memcpy (log_line_buf + cur, "D ", 2);
-        cur += 2;
-        memcpy (log_line_buf + cur, "0000 0000 ", 10); // todo
-        cur += 10;
         memcpy (log_line_buf + cur, key, key_len);
         cur += key_len;
-        memcpy (log_line_buf + cur, "\r\n", 2);
-        cur += 2;
-        log_line_buf[cur] = '\0';
     }
+
+    memcpy (log_line_buf + cur, "\r\n", 2);
+    cur += 2;
+    log_line_buf[cur] = '\0';
 
     nr = write (redo_log_write_fd, log_line_buf, strlen (log_line_buf));
     if (nr == -1) {
