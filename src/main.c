@@ -7,6 +7,7 @@
 
 int main()
 {
+    // todo: feature: file io multiplexing
     // todo: feature: transaction
     int server_termination_state;
 
