@@ -39,7 +39,6 @@ void kv_redo_init (void)
         exit (1);
     }
 
-    // todo: get final redo_id
     redo_id = 0;
 }
 
@@ -148,18 +147,6 @@ void kv_redo_add (enum RedoType redo_type, char *key, char *value)
     }
 }
 
-
-void lseek_with_error (int fd, off_t cur, int whence)
-{
-    off_t ret;
-    ret = lseek (fd, cur, whence);
-    if (ret == (off_t) -1) {
-        perror ("leek error");
-        exit (1);
-    }
-    return;
-}
-
 ssize_t read_with_error (int fd, void *buf, size_t count)
 {
     ssize_t nr;
@@ -171,6 +158,17 @@ ssize_t read_with_error (int fd, void *buf, size_t count)
         exit (1);
     }
     return nr;
+}
+
+off_t lseek_with_error (int fd, off_t cur, int whence)
+{
+    off_t ret;
+    ret = lseek (fd, cur, whence);
+    if (ret == (off_t) -1) {
+        perror ("leek error");
+        exit (1);
+    }
+    return ret;
 }
 
 void read_space (int fd)
@@ -198,6 +196,7 @@ void kv_redo_redo (struct kv_ht *ht)
     ssize_t nr;
 
     char number[8];
+    memset (number, '0', 8);
     char command;
     char key_len_digit[4];
     int key_len;
@@ -209,8 +208,10 @@ void kv_redo_redo (struct kv_ht *ht)
     // todo: add log line to error string
     while (1) {
         nr = read_with_error (redo_log_read_fd, number, 8);
-        if (nr == 0)
+        if (nr == 0) {
+            redo_id = digit_to_int (number, 8) + 1;
             break;
+        }
         read_space (redo_log_read_fd);
 
         nr = read_with_error (redo_log_read_fd, &command, 1);
