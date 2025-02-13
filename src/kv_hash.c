@@ -15,9 +15,6 @@ struct kv_ht {
     struct kv_ht_elem **table;
 };
 
-// todo: remove
-struct kv_ht ht;
-
 unsigned long djb2(char* str)
 {
     unsigned long hash = 5381;
@@ -183,5 +180,4 @@ int kv_ht_del (struct kv_ht *ht, char *key)
     }
     return 0;
 }
-
 

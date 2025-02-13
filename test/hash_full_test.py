@@ -32,18 +32,28 @@ class HashFullTest(unittest.TestCase):
     def test_set_many(self):
         print("test_set_many start")
         is_failed = False
-        failed_i = 0
         data = None
-        test_id = hash(self)
+        test_id = abs(hash(self))
         for i in range(100):
-            self.send('set {}{} 1\r\n'.format(test_id, i).encode())
+            self.send('set {}{} {}{}\r\n'.format(test_id, i, test_id, i).encode())
             data = self.receive()
             if b'OK\r\n\x00' != data:
                 is_failed = True
-                failed_i = i
                 break
-        for i in range(failed_i):
-            self.send_and_recv('del {}{}\r\n'.format(test_id, i).encode())
+
+        for i in range(100):
+            self.send('get {}{}\r\n'.format(test_id, i).encode())
+            data = self.receive()
+            if '{}{}\r\n\x00'.format(test_id, i).encode() != data:
+                is_failed = True
+                break
+
+        for i in range(100):
+            self.send('del {}{}\r\n'.format(test_id, i).encode())
+            data = self.receive()
+            if b'1\r\n\x00' != data:
+                is_failed = True
+                break
 
         if is_failed:
             self.fail("failed on {} with {}".format(i, data))

@@ -32,42 +32,49 @@ class SeparatedPacketTest(unittest.TestCase):
 
     def test_separated_packet(self):
         print("test_separated_packet start")
-        self.send(b'get ab')
+        test_id = abs(hash(self))
+        self.send('get {}ab'.format(test_id).encode())
         self.send(b'cd\r\n')
         data = self.receive()
         self.assertEqual(b'(nil)\r\n\x00', data)
 
-        self.send(b'set ab')
+        self.send('set {}ab'.format(test_id).encode())
         self.send(b'cd wxyz\r\n')
         data = self.receive()
         self.assertEqual(b'OK\r\n\x00', data)
 
-        self.send(b'get ab')
+        self.send('get {}ab'.format(test_id).encode())
         self.send(b'cd\r\n')
         data = self.receive()
         self.assertEqual(b'wxyz\r\n\x00', data)
 
-        self.send(b'get abcd\r')
+        self.send('get {}abcd\r'.format(test_id).encode())
         self.send(b'\n')
         data = self.receive()
         self.assertEqual(b'wxyz\r\n\x00', data)
 
     def test_multi_command_with_one_packet(self):
         print("test_two_command_with_one_packet start")
-        self.send(b'get abcde\r\nset abcde wxyz\r\nget abcde\r\n')
+        test_id = abs(hash(self))
+        self.send(
+            'get {}abcde\r\nset {}abcde wxyz\r\nget {}abcde\r\n'
+                .format(test_id, test_id, test_id).encode()
+        )
         data = b''
         for i in range(3):
             data += self.receive()
+            print(data)
             if data.count(b'\r\n\x00') == 3:
                 break
         self.assertEqual(b'(nil)\r\n\x00OK\r\n\x00wxyz\r\n\x00', data)
 
     def test_separated_packet_2(self):
         print("test_separated_packet_2 start")
-        self.send(b'get abcdef\r\nset abc')
+        test_id = abs(hash(self))
+        self.send('get {}abcdef\r\nset {}abc'.format(test_id, test_id).encode())
         data = self.receive()
         self.assertEqual(b'(nil)\r\n\x00', data)
-        self.send(b'def wxyz\r\nget abcdef\r\n')
+        self.send('def wxyz\r\nget {}abcdef\r\n'.format(test_id).encode())
         data = b''
         for i in range(2):
             data += self.receive()

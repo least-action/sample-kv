@@ -108,6 +108,7 @@ void run_command(struct kv_ht *ht, char* command, char* result)
         value[strlen(value)-2] = '\0';
         
         kv_redo_add (REDO_SET, key, value);
+
         kv_ht_set (ht, key, value);
         strcpy(result, set_success);
     }
@@ -115,6 +116,7 @@ void run_command(struct kv_ht *ht, char* command, char* result)
         command[strlen(command)-2] = '\0';
 
         kv_redo_add (REDO_DEL, command+4, NULL);
+
         del_result = kv_ht_del (ht, command+4);
         if (del_result == 0)
             strcpy (result, del_not_found);
@@ -132,12 +134,13 @@ int consume_command(struct kv_ht *ht, char *command, char *result)
     if (end_of_command == -1)
         return 0;
 
-    char temp[64];
-    memcpy (temp, command, 64);
-    memset (command, 0, 64);
+    char temp[128];  // todo: refactor: remove magic number
+    memcpy (temp, command, 128);
+    memset (command, 0, 128);
     memcpy (command, temp + end_of_command + 1, strlen (temp) - end_of_command - 1);
     temp[end_of_command + 1] = '\0';
 
+    printf("%s\n", temp);
     run_command (ht, temp, result);
     return 1;
 }

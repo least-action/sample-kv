@@ -31,39 +31,42 @@ class GetSetDelTest(unittest.TestCase):
 
     def test_get(self):
         print("test_get start")
-        self.send(b'get 1\r\n')
+        test_id = abs(hash(self))
+        self.send('get {}\r\n'.format(test_id).encode())
         data = self.receive()
         self.assertEqual(b'(nil)\r\n\x00', data)
 
     def test_set(self):
         print("test_set start")
-        self.send(b'set 2 a\r\n')
+        test_id = abs(hash(self))
+        self.send('set {} a\r\n'.format(test_id).encode())
         data = self.receive()
         self.assertEqual(b'OK\r\n\x00', data)
 
-        data = self.send(b'get 2\r\n')
+        data = self.send('get {}\r\n'.format(test_id).encode())
         data = self.receive()
         self.assertEqual(b'a\r\n\x00', data)
 
     def test_del(self):
         print("test_del start")
-        data = self.send(b'del 3\r\n')
+        test_id = abs(hash(self))
+        data = self.send('del {}\r\n'.format(test_id).encode())
         data = self.receive()
         self.assertEqual(b'0\r\n\x00', data)
 
-        data = self.send(b'set 3 b\r\n')
+        data = self.send('set {} b\r\n'.format(test_id).encode())
         data = self.receive()
         self.assertEqual(b'OK\r\n\x00', data)
 
-        data = self.send(b'get 3\r\n')
+        data = self.send('get {}\r\n'.format(test_id).encode())
         data = self.receive()
         self.assertEqual(b'b\r\n\x00', data)
 
-        data = self.send(b'del 3\r\n')
+        data = self.send('del {}\r\n'.format(test_id).encode())
         data = self.receive()
         self.assertEqual(b'1\r\n\x00', data)
 
-        data = self.send(b'get 3\r\n')
+        data = self.send('get {}\r\n'.format(test_id).encode())
         data = self.receive()
         self.assertEqual(b'(nil)\r\n\x00', data)
 

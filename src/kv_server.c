@@ -10,12 +10,10 @@
 #include <sys/epoll.h>
 #include <stddef.h>
 
-#define BUFFER_SIZE 64
-#define COMMAND_SIZE 64
+#define BUFFER_SIZE 128
+#define COMMAND_SIZE 128
 #define RESULT_SIZE 64
 #define MAX_EVENTS 64
-
-#define LOG_FILE_NAME "log.kv"
 
 static int count;
 static struct kv_ht *ht;
