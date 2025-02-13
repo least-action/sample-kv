@@ -16,8 +16,8 @@
  *  file format
  *
  *
- *  00000000 S 0005 0007 hello world!!\r\n
- *  00000001 D 0006 0000 hello\r\n
+ *  00000000 S 0005 0007 hello world!!\n
+ *  00000001 D 0006 0000 hello\n
  */
 
 int redo_log_write_fd;
@@ -27,6 +27,7 @@ int redo_id;
 
 void kv_redo_init (void)
 {
+    // todo: fopen
     redo_log_write_fd = open (REDO_LOG_FILE_NAME, O_CREAT | O_APPEND | O_WRONLY, 0644);
     if (redo_log_write_fd == -1) {
         perror ("open redo log write");
@@ -38,6 +39,7 @@ void kv_redo_init (void)
         exit (1);
     }
 
+    // todo: get final redo_id
     redo_id = 0;
 }
 
@@ -47,6 +49,7 @@ void kv_redo_terminate (void)
     close (redo_log_read_fd);
 }
 
+// todo: perf: to hex?
 void int_to_digit (int digit_len, int integer, char* buf)
 {
     int quotient, remainder;
@@ -56,6 +59,23 @@ void int_to_digit (int digit_len, int integer, char* buf)
         quotient /= 10;
         buf[digit_len-1-i] = (char) (remainder + 48);
     }
+}
+
+int digit_to_int (char* digit, int digit_len)
+{
+    int integer = 0;
+    int weight = 1;
+    int num;
+    for (int i = 0; i < digit_len; ++i) {
+        num = (int) (digit[digit_len-1-i] - 48);
+        if (num < 0 || num > 9) {
+            perror ("digit is out of range");
+            exit (1);
+        }
+        integer += num * weight;
+        weight *= 10;
+    }
+    return integer;
 }
 
 int get_next_redo_id (void)
@@ -117,48 +137,119 @@ void kv_redo_add (enum RedoType redo_type, char *key, char *value)
         cur += key_len;
     }
 
-    memcpy (log_line_buf + cur, "\r\n", 2);
-    cur += 2;
+    memcpy (log_line_buf + cur, "\n", 1);
+    cur += 1;
     log_line_buf[cur] = '\0';
 
-    nr = write (redo_log_write_fd, log_line_buf, strlen (log_line_buf) + 1);
+    nr = write (redo_log_write_fd, log_line_buf, strlen (log_line_buf));
     if (nr == -1) {
         perror ("write redo error");
         exit (1);
     }
 }
 
+
+void lseek_with_error (int fd, off_t cur, int whence)
+{
+    off_t ret;
+    ret = lseek (fd, cur, whence);
+    if (ret == (off_t) -1) {
+        perror ("leek error");
+        exit (1);
+    }
+    return;
+}
+
+ssize_t read_with_error (int fd, void *buf, size_t count)
+{
+    ssize_t nr;
+    nr = read (fd, buf, count);
+    if (nr == 0)
+        return nr;
+    if (nr != count) {
+        perror ("redo log file format error");
+        exit (1);
+    }
+    return nr;
+}
+
+void read_space (int fd)
+{
+    char space;
+    read_with_error(fd, &space, 1);
+    if (space != ' ') {
+        perror ("redo log file format error (space)");
+        exit (1);
+    }
+}
+
+void read_eol (int fd)
+{
+    char eol;
+    read_with_error(fd, &eol, 1);
+    if (eol != '\n') {
+        perror ("redo log file format error (eol)");
+        exit (1);
+    }
+}
+
 void kv_redo_redo (struct kv_ht *ht)
 {
-    // todo
-    char *key;
-    char *value;
-    ssize_t cur = 0;
     ssize_t nr;
 
     char number[8];
     char command;
-    off_t ret;
+    char key_len_digit[4];
+    int key_len;
+    char val_len_digit[4];
+    int val_len;
+    char key[1024];
+    char val[1024];
 
+    // todo: add log line to error string
     while (1) {
-        break;
-        nr = read (redo_log_read_fd, number, 8);
+        nr = read_with_error (redo_log_read_fd, number, 8);
         if (nr == 0)
             break;
-        if (nr != 8) {
-            perror ("redo log file format error");
+        read_space (redo_log_read_fd);
+
+        nr = read_with_error (redo_log_read_fd, &command, 1);
+        read_space (redo_log_read_fd);
+
+        nr = read_with_error (redo_log_read_fd, key_len_digit, 4);
+        // todo: key format check(\r\n existence)
+        key_len = digit_to_int (key_len_digit, 4);
+        read_space (redo_log_read_fd);
+
+        nr = read_with_error (redo_log_read_fd, val_len_digit, 4);
+        val_len = digit_to_int (val_len_digit, 4);
+        read_space (redo_log_read_fd);
+
+
+        if (command == 'S') {
+            nr = read_with_error (redo_log_read_fd, key, key_len);
+            key[key_len] = '\0';
+            read_space (redo_log_read_fd);
+
+            nr = read_with_error (redo_log_read_fd, val, val_len);
+            val[val_len] = '\0';
+
+            read_eol (redo_log_read_fd);
+
+            kv_ht_set (ht, key, val);
+        }
+        else if (command == 'D') {
+            nr = read_with_error (redo_log_read_fd, key, key_len);
+            key[key_len] = '\0';
+
+            read_eol (redo_log_read_fd);
+
+            kv_ht_del (ht, key);
+        }
+        else {
+            perror ("command error");
             exit (1);
         }
-
-        ret = lseek (redo_log_read_fd, (off_t) 9, SEEK_SET);
-        if (ret == (off_t) -1) {
-            perror ("leek error");
-            exit (1);
-        }
-
-        kv_ht_set (ht, key, value);
-        kv_ht_del (ht, key);
     }
-
 }
 
