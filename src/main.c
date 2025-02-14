@@ -9,6 +9,7 @@ int main()
 {
     // todo: feature: file io multiplexing
     // todo: feature: transaction
+    // todo: bug: remove transaction context when client closed
     int server_termination_state;
 
     printf ("program started.\n");
