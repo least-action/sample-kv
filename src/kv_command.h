@@ -4,7 +4,7 @@
 #include "kv_hash.h"
 #include <stddef.h>
 
-int consume_command(struct kv_ht *ht, char *buffer, char *result);
+int consume_command(struct kv_ht *ht, char *buffer, char *result, int *transaction_id);
 
 #endif
 

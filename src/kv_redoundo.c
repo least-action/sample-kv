@@ -254,3 +254,17 @@ void kv_redo_redo (struct kv_ht *ht)
     }
 }
 
+int kv_undo_current_id (void)
+{
+    return 1;
+}
+
+void kv_undo_add (enum UndoType undo_type, char *key, char *value)
+{
+}
+
+char* kv_undo_undo (char *key, char *value, int transaction_id)
+{
+    return NULL;
+}
+

@@ -31,6 +31,7 @@ struct handler_context {
      */
     char command[COMMAND_SIZE];
     int command_cur;
+    int transaction_id;
     char result[RESULT_SIZE];
     struct handler_context *prev;  // todo: perf: optimize O(n)
     struct handler_context *next;
@@ -47,6 +48,7 @@ void register_client (int client_fd)
     memset (new_context->buffer, 0, BUFFER_SIZE);
     memset (new_context->command, 0, COMMAND_SIZE);
     new_context->command_cur = 0;
+    new_context->transaction_id = -1;
     memset (new_context->result, 0, RESULT_SIZE);
     new_context->prev = NULL;
     new_context->next = NULL;
@@ -109,7 +111,7 @@ void handle_client (int client_fd)
     elem->command_cur += bytes_read;
     int consume_count;
     while (1) {
-        consume_count = consume_command (ht, elem->command, elem->result);
+        consume_count = consume_command (ht, elem->command, elem->result, &elem->transaction_id);
         if (consume_count == 0)
             break;
         elem->command_cur = strlen (elem->command);

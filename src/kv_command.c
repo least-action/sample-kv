@@ -12,6 +12,17 @@ char* get_notfound = "(nil)";
 char* set_success = "OK";
 char* del_success = "1";
 char* del_not_found = "0";
+char* transaction_started = "started";
+char* transaction_committed = "commit";
+char* transaction_aborted = "rollback";
+
+struct transaction_data {
+    int transaction_id;
+    int start_id;
+    struct transaction_data *next;
+};
+
+struct transaction_data *td_list;
 
 // todo: use parser
 bool is_command_empty(char* command)
@@ -42,7 +53,7 @@ int space_count (char *command)
     return count;
 }
 
-bool is_command_set(char* command)
+bool is_command_set (char* command)
 {
     return (strlen(command) > 4)
         && (command[0] == 's')
@@ -52,7 +63,7 @@ bool is_command_set(char* command)
         && (space_count (command) == 2);
 }
 
-bool is_command_del(char* command)
+bool is_command_del (char* command)
 {
     return (strlen(command) > 4)
         && (command[0] == 'd')
@@ -61,7 +72,38 @@ bool is_command_del(char* command)
         && (command[3] == ' ');
 }
 
-int get_value_start(char* command)
+bool is_transaction_started (char* command)
+{
+    return (strlen(command) ==  7)
+        && (command[0] == 'b')
+        && (command[1] == 'e')
+        && (command[2] == 'g')
+        && (command[3] == 'i')
+        && (command[4] == 'n');
+}
+
+bool is_transaction_commited (char* command)
+{
+    return (strlen(command) == 8)
+        && (command[0] == 'c')
+        && (command[1] == 'o')
+        && (command[2] == 'm')
+        && (command[3] == 'm')
+        && (command[4] == 'i')
+        && (command[5] == 't');
+}
+
+bool is_transaction_aborted (char* command)
+{
+    return (strlen(command) == 7)
+        && (command[0] == 'a')
+        && (command[1] == 'b')
+        && (command[2] == 'o')
+        && (command[3] == 'r')
+        && (command[4] == 't');
+}
+
+int get_value_start (char* command)
 {
     // todo: check value is valid string
     int cur = 4;
@@ -92,6 +134,8 @@ void run_command(struct kv_ht *ht, char* command, char* result)
         strcpy(result, "");
     }
 
+    // get transaction data
+
     else if (is_command_get(command)) {
         command[strlen(command)-2] = '\0';
         get_result = kv_ht_get (ht, command+4);
@@ -109,26 +153,48 @@ void run_command(struct kv_ht *ht, char* command, char* result)
         
         kv_redo_add (REDO_SET, key, value);
 
+        get_result = kv_ht_get (ht, command+4);
+        if (get_result == NULL) {
+            kv_undo_add (UNDO_DEL, key, NULL);
+        }
+        else {
+            kv_undo_add (UNDO_SET, key, get_result);
+        }
+
         kv_ht_set (ht, key, value);
         strcpy(result, set_success);
     }
     else if (is_command_del(command)) {
         command[strlen(command)-2] = '\0';
+        char *key = command+4;
 
-        kv_redo_add (REDO_DEL, command+4, NULL);
+        kv_redo_add (REDO_DEL, key, NULL);
 
-        del_result = kv_ht_del (ht, command+4);
+        get_result = kv_ht_get (ht, key);
+
+        del_result = kv_ht_del (ht, key);
         if (del_result == 0)
             strcpy (result, del_not_found);
-        else
+        else {
+            kv_undo_add (UNDO_SET, key, get_result);
             strcpy (result, del_success);
+        }
+    }
+    else if (is_transaction_started (command)) {
+        strcpy (result, transaction_started);
+    }
+    else if (is_transaction_commited (command)) {
+        strcpy (result, transaction_committed);
+    }
+    else if (is_transaction_aborted (command)) {
+        strcpy (result, transaction_aborted);
     }
     else {
         strcpy(result, invalid_command);
     }
 }
 
-int consume_command(struct kv_ht *ht, char *command, char *result)
+int consume_command(struct kv_ht *ht, char *command, char *result, int *transaction_id)
 {
     int end_of_command = find_end_of_command (command);
     if (end_of_command == -1)
@@ -140,7 +206,6 @@ int consume_command(struct kv_ht *ht, char *command, char *result)
     memcpy (command, temp + end_of_command + 1, strlen (temp) - end_of_command - 1);
     temp[end_of_command + 1] = '\0';
 
-    printf("%s\n", temp);
     run_command (ht, temp, result);
     return 1;
 }
