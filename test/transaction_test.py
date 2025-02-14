@@ -52,6 +52,8 @@ class TransactionTest(unittest.TestCase):
         self.assertEqual(b'tt\r\n\x00', data1)
         self.assertEqual(b'(nil)\r\n\x00', data2)
 
+        self.send(socket1, 'del {}\r\n'.format(test_id).encode())
+        self.receive(socket1)
         socket2.close()
         socket1.close()
 
@@ -80,6 +82,8 @@ class TransactionTest(unittest.TestCase):
         self.assertEqual(b'conflict\r\n\x00', data1)
         self.assertEqual(b'aa\r\n\x00', data2)
 
+        self.send(socket2, 'del {}\r\n'.format(test_id).encode())
+        self.receive(socket2)
         socket2.close()
         socket1.close()
 
