@@ -63,7 +63,6 @@ class SeparatedPacketTest(unittest.TestCase):
         data = b''
         for i in range(3):
             data += self.receive()
-            print(data)
             if data.count(b'\r\n\x00') == 3:
                 break
         self.assertEqual(b'(nil)\r\n\x00OK\r\n\x00wxyz\r\n\x00', data)
