@@ -6,4 +6,3 @@
 int kv_run_server (uint16_t port);
 
 #endif
-

@@ -17,7 +17,7 @@ char* transaction_committed = "commit";
 char* transaction_aborted = "rollback";
 
 struct transaction_data {
-    int transaction_id;
+    int tx_id;
     int start_id;
     struct transaction_data *next;
 };
@@ -194,7 +194,7 @@ void run_command(struct kv_ht *ht, char* command, char* result)
     }
 }
 
-int consume_command(struct kv_ht *ht, char *command, char *result, int *transaction_id)
+int consume_command(struct kv_ht *ht, char *command, char *result, int *tx_id)
 {
     int end_of_command = find_end_of_command (command);
     if (end_of_command == -1)

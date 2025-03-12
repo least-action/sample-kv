@@ -15,10 +15,11 @@
 #define RESULT_SIZE 64
 #define MAX_EVENTS 64
 
-static int count;
 static struct kv_ht *ht;
 static int epfd;
 int write_log_fd, read_log_fd;
+
+int server_fd;
 
 struct handler_context {
     int client_fd;
@@ -31,7 +32,7 @@ struct handler_context {
      */
     char command[COMMAND_SIZE];
     int command_cur;
-    int transaction_id;
+    int tx_id;
     char result[RESULT_SIZE];
     struct handler_context *prev;  // todo: perf: optimize O(n)
     struct handler_context *next;
@@ -48,7 +49,7 @@ void register_client (int client_fd)
     memset (new_context->buffer, 0, BUFFER_SIZE);
     memset (new_context->command, 0, COMMAND_SIZE);
     new_context->command_cur = 0;
-    new_context->transaction_id = -1;
+    new_context->tx_id = -1;
     memset (new_context->result, 0, RESULT_SIZE);
     new_context->prev = NULL;
     new_context->next = NULL;
@@ -111,7 +112,7 @@ void handle_client (int client_fd)
     elem->command_cur += bytes_read;
     int consume_count;
     while (1) {
-        consume_count = consume_command (ht, elem->command, elem->result, &elem->transaction_id);
+        consume_count = consume_command (ht, elem->command, elem->result, &elem->tx_id);
         if (consume_count == 0)
             break;
         elem->command_cur = strlen (elem->command);
@@ -132,13 +133,49 @@ void handle_client (int client_fd)
     return;
 }
 
+
+void handle_event (struct epoll_event ee)
+{
+    int client_fd;
+    struct sockaddr_in client_addr;
+    socklen_t addr_len = sizeof (client_addr);
+    struct epoll_event set_event;
+
+    if (ee.data.fd == server_fd) {
+        client_fd = accept (server_fd, (struct sockaddr*)&client_addr, &addr_len);
+         if (client_fd < 0) {
+            perror("failed to accept");
+            return;
+        }
+
+        set_event.data.fd = client_fd;
+        set_event.events = EPOLLIN;
+        epoll_ctl (epfd, EPOLL_CTL_ADD, client_fd, &set_event);
+
+        printf ("client connected from: %s:%d\n",
+            inet_ntoa (client_addr.sin_addr),
+            ntohs (client_addr.sin_port)
+        );
+
+        if (write (client_fd, "connected\r\n", 11) < 11) {
+            perror ("failed to write");
+            epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
+            close (client_fd);
+            printf ("client disconnected\n");
+        }
+
+        register_client (client_fd);
+    }
+    else {
+        handle_client (ee.data.fd);
+    }
+    return;
+}
+
 int kv_run_server (uint16_t port)
 {
-    count = 0;
-    int server_fd, client_fd;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t addr_len = sizeof (client_addr);
-
+    struct sockaddr_in server_addr;
+    
     struct epoll_event set_event;
     struct epoll_event *events;
     int e_count;
@@ -204,37 +241,8 @@ int kv_run_server (uint16_t port)
             break;
         }
 
-        for (int i = 0; i < e_count; ++i) {
-            if (events[i].data.fd == server_fd) {
-                client_fd = accept (server_fd, (struct sockaddr*)&client_addr, &addr_len);
-                 if (client_fd < 0) {
-                    perror("failed to accept");
-                    continue;
-                }
-
-                set_event.data.fd = client_fd;
-                set_event.events = EPOLLIN;
-                epoll_ctl (epfd, EPOLL_CTL_ADD, client_fd, &set_event);
-
-                printf ("client connected from: %s:%d\n",
-                    inet_ntoa (client_addr.sin_addr),
-                    ntohs (client_addr.sin_port)
-                );
-
-                if (write (client_fd, "connected\r\n", 11) < 11) {
-                    perror ("failed to write");
-                    epoll_ctl (epfd, EPOLL_CTL_DEL, client_fd, NULL);
-                    close (client_fd);
-                    printf ("client disconnected\n");
-                }
-
-                register_client (client_fd);
-            }
-           else {
-                client_fd = events[i].data.fd;
-                handle_client (client_fd);
-            }
-        }
+        for (int i = 0; i < e_count; ++i)
+            handle_event(events[i]);
     }
 
     free (events);

@@ -26,7 +26,7 @@ int kv_undo_current_id (void);
 
 void kv_undo_add (enum UndoType undo_type, char *key, char *value);
 
-char* kv_undo_undo (char *key, char *value, int transaction_id);
+char* kv_undo_undo (char *key, char *value, int tx_id);
 
 #endif
 

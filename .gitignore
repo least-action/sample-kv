@@ -237,6 +237,7 @@ test/results/*
 
 ########## other ##########
 *.swp
+.vscode
 
 redo_log.kvdb
 
