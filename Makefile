@@ -1,14 +1,14 @@
-CC = gcc
-CFLAGS = -std=c99 -Wall -O2
-OBJS = main.o
-
 SRC_DIR = src
 BUILD_DIR = build
 TEST_DIR = test
 TARGET = a.out
 
-SRC_FILES = $(wildcard $(SRC_DIR)/*.c)
-OBJ_FILES = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC_FILES))
+CC = gcc
+CFLAGS = -std=c99 -Wall -O2 -I$(SRC_DIR)
+OBJS = main.o
+
+SRC_FILES = $(shell find $(SRC_DIR) -type f -name "*.c")
+OBJ_FILES = $(patsubst $(SRC_DIR)/%, $(BUILD_DIR)/%, $(SRC_FILES:.c=.o))
 
 .PHONY: test
 
@@ -19,7 +19,7 @@ $(TARGET): $(OBJ_FILES)
 	$(CC) $(CFLAGS) -o $@ $^
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
-	mkdir -p $(BUILD_DIR)
+	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 test:
