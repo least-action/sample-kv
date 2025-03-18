@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "server/kv_server.h"
+#include "kv_server.h"
 
 // todo: port from arg
 #define PORT 1234

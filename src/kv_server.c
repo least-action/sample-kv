@@ -1,8 +1,8 @@
 #include "kv_command.h"
 #include "kv_hash.h"
 #include "kv_redoundo.h"
-#include "server/kv_server.h"
-#include "server/kv_client_handler.h"
+#include "kv_server.h"
+#include "kv_client_handler.h"
 
 #include <stdio.h>
 #include <stdlib.h>

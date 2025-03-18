@@ -1,5 +1,5 @@
-#include "server/kv_client_handler.h"
-#include "server/kv_server.h"
+#include "kv_client_handler.h"
+#include "kv_server.h"
 #include "kv_command.h"
 
 #include <stdio.h>
