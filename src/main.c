@@ -17,6 +17,8 @@ int main()
 
     if (server_termination_state == 0)
         printf ("server sucessfully terminated.\n");
+    else if (server_termination_state == 4)
+        ;
     else
         printf("server terminated with %d\n", server_termination_state);
 

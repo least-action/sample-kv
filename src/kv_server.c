@@ -77,14 +77,15 @@ int kv_run_server (uint16_t port)
             exit (EXIT_FAILURE);
         }
 
-        if (pid != 0) {  // parent
+        if (pid == 0) {  // child
+            close (server_fd);
+            kv_handle_client (client_fd);
+            return 4;
+            
+        } else {  // parent
             close (client_fd);
             continue;
         }
-        // child
-        close (server_fd);
-        kv_handle_client (client_fd);
-        return 0;
     }
 
     close (server_fd);

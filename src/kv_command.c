@@ -1,6 +1,7 @@
 #include "kv_command.h"
 #include "kv_hash.h"
 #include "kv_redoundo.h"
+#include "transaction.h"
 
 #include <string.h>
 #include <stdbool.h>
@@ -13,16 +14,10 @@ char* set_success = "OK";
 char* del_success = "1";
 char* del_not_found = "0";
 char* transaction_started = "started";
+char* transaction_already_started = "transaction is ongoing";
 char* transaction_committed = "commit";
 char* transaction_aborted = "rollback";
 
-struct transaction_data {
-    int tx_id;
-    int start_id;
-    struct transaction_data *next;
-};
-
-struct transaction_data *td_list;
 
 // todo: use parser
 bool is_command_empty(char* command)
@@ -125,18 +120,30 @@ int find_end_of_command (char *buffer)
     return -1;
 }
 
-void run_command(struct kv_ht *ht, char* command, char* result)
+void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
 {
     char *get_result;
     int del_result;
+    // bool is_single_command = false;
 
     if (is_command_empty(command)) {
         strcpy(result, "");
+        return;
     }
 
-    // get transaction data
+    if (is_transaction_started (command)) {
+        if (&tx_id > 0) {
+            strcpy (result, transaction_already_started);
+            return;
+        }
 
-    else if (is_command_get(command)) {
+        *tx_id = kv_tx_get_new_transaction ();
+        strcpy (result, transaction_started);
+        return;
+    }
+
+    if (is_command_get(command)) {
+
         command[strlen(command)-2] = '\0';
         get_result = kv_ht_get (ht, command+4);
         if (get_result == NULL)
@@ -180,9 +187,6 @@ void run_command(struct kv_ht *ht, char* command, char* result)
             strcpy (result, del_success);
         }
     }
-    else if (is_transaction_started (command)) {
-        strcpy (result, transaction_started);
-    }
     else if (is_transaction_commited (command)) {
         strcpy (result, transaction_committed);
     }
@@ -206,7 +210,7 @@ int consume_command(struct kv_ht *ht, char *command, char *result, int *tx_id)
     memcpy (command, temp + end_of_command + 1, strlen (temp) - end_of_command - 1);
     temp[end_of_command + 1] = '\0';
 
-    run_command (ht, temp, result);
+    run_command (ht, temp, result, tx_id);
     return 1;
 }
 

@@ -31,6 +31,7 @@ void kv_handle_client (int client_fd)
     char result[RESULT_SIZE];
     size_t result_len;
     bool is_disconnected;
+    int consume_count;
 
     while (!is_disconnected) {
         // todo: bug: when user send more than BUFFER_SIZE
@@ -46,7 +47,7 @@ void kv_handle_client (int client_fd)
         // todo: bug: handle when command is longer than limit
         memcpy (command + command_cur, buffer, bytes_read);
         command_cur += bytes_read;
-        int consume_count;
+        
         while (1) {
             consume_count = consume_command (ht, command, result, &tx_id);
             if (consume_count == 0)
