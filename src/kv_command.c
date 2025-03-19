@@ -124,7 +124,7 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
 {
     char *get_result;
     int del_result;
-    // bool is_single_command = false;
+    bool is_single_command = false;
 
     if (is_command_empty(command)) {
         strcpy(result, "");
@@ -132,7 +132,7 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
     }
 
     if (is_transaction_started (command)) {
-        if (&tx_id > 0) {
+        if (*tx_id >= 0) {
             strcpy (result, transaction_already_started);
             return;
         }
@@ -143,6 +143,10 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
     }
 
     if (is_command_get(command)) {
+        if (*tx_id < 0) {
+            *tx_id = kv_tx_get_new_transaction ();
+            is_single_command = true;
+        }
 
         command[strlen(command)-2] = '\0';
         get_result = kv_ht_get (ht, command+4);
@@ -150,8 +154,18 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
             strcpy (result, get_notfound);
         else
             strcpy (result, get_result);
+
+        if (is_single_command) {
+            *tx_id = -1;
+            // commit
+        }
     }
     else if (is_command_set(command)) {
+        if (*tx_id < 0) {
+            *tx_id = kv_tx_get_new_transaction ();
+            is_single_command = true;
+        }
+
         int value_start = get_value_start(command);
         command[value_start-1] = '\0';
         char *key = command+4;
@@ -170,8 +184,18 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
 
         kv_ht_set (ht, key, value);
         strcpy(result, set_success);
+
+        if (is_single_command) {
+            *tx_id = -1;
+            // commit
+        }
     }
     else if (is_command_del(command)) {
+        if (*tx_id < 0) {
+            *tx_id = kv_tx_get_new_transaction ();
+            is_single_command = true;
+        }
+
         command[strlen(command)-2] = '\0';
         char *key = command+4;
 
@@ -185,6 +209,11 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
         else {
             kv_undo_add (UNDO_SET, key, get_result);
             strcpy (result, del_success);
+        }
+
+        if (is_single_command) {
+            *tx_id = -1;
+            // commit
         }
     }
     else if (is_transaction_commited (command)) {

@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdint.h>
 
 #define REDO_LOG_FILE_NAME "redo_log.kvdb"
 #define LOG_LINE_BUF_SIZE 1024

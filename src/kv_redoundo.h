@@ -29,4 +29,3 @@ void kv_undo_add (enum UndoType undo_type, char *key, char *value);
 char* kv_undo_undo (char *key, char *value, int tx_id);
 
 #endif
-
