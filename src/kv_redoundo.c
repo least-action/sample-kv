@@ -1,5 +1,6 @@
 #include "kv_redoundo.h"
 #include "kv_hash.h"
+#include "utils.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -58,23 +59,6 @@ void int_to_digit (int digit_len, int integer, char* buf)
         quotient /= 10;
         buf[digit_len-1-i] = (char) (remainder + 48);
     }
-}
-
-int digit_to_int (char* digit, int digit_len)
-{
-    int integer = 0;
-    int weight = 1;
-    int num;
-    for (int i = 0; i < digit_len; ++i) {
-        num = (int) (digit[digit_len-1-i] - 48);
-        if (num < 0 || num > 9) {
-            perror ("digit is out of range");
-            exit (1);
-        }
-        integer += num * weight;
-        weight *= 10;
-    }
-    return integer;
 }
 
 int get_next_redo_id (void)
