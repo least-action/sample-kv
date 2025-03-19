@@ -5,6 +5,10 @@
 #define COMMAND_SIZE 128
 #define RESULT_SIZE 64
 
-void kv_handle_client (int client_fd);
+struct kv_handle_client_data {
+    int client_fd;
+};
+
+void* kv_handle_client (void *data);
 
 #endif

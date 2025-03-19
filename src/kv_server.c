@@ -10,9 +10,10 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <stddef.h>
+#include <pthread.h>
+#include <errno.h>
 
 struct kv_ht *ht;
-
 
 int kv_run_server (uint16_t port)
 {
@@ -20,7 +21,9 @@ int kv_run_server (uint16_t port)
     struct sockaddr_in server_addr;
     struct sockaddr_in client_addr;
     socklen_t addr_len = sizeof (client_addr);
-    pid_t pid;
+    pthread_t thread;
+    int ret;
+    struct kv_handle_client_data *data;
     
     ht = kv_ht_create (2);
 
@@ -69,20 +72,12 @@ int kv_run_server (uint16_t port)
             printf ("client disconnected\n");
         }
 
-        pid = fork();
-        if (pid == -1) {
-            perror ("failed to fork");
-            close (server_fd);
-            close (client_fd);
-            exit (EXIT_FAILURE);
-        }
-
-        if (pid == 0) {  // child
-            close (server_fd);
-            kv_handle_client (client_fd);
-            return 4;
-            
-        } else {  // parent
+        data = (struct kv_handle_client_data *) malloc (sizeof (struct kv_handle_client_data));
+        data->client_fd = client_fd;
+        ret = pthread_create (&thread, NULL, (void*) kv_handle_client, data);
+        if (ret != 0) {
+            errno = ret;
+            perror ("pthread create error");
             close (client_fd);
             continue;
         }

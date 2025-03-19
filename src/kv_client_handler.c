@@ -16,8 +16,13 @@
 #define RESULT_SIZE 64
 
 
-void kv_handle_client (int client_fd)
+void* kv_handle_client (void *data)
 {
+    struct kv_handle_client_data *client_data;
+    client_data = (struct kv_handle_client_data *) data;
+    int client_fd = client_data->client_fd;
+    free (client_data);
+
     char buffer[BUFFER_SIZE];
     /*
      * command
@@ -26,11 +31,11 @@ void kv_handle_client (int client_fd)
      *                        idx(==7) = command_cur 
      */
     char command[COMMAND_SIZE];
-    int command_cur;
-    int tx_id;
+    int command_cur = 0;
+    int tx_id = -1;
     char result[RESULT_SIZE];
     size_t result_len;
-    bool is_disconnected;
+    bool is_disconnected = false;
     int consume_count;
 
     while (!is_disconnected) {
@@ -67,4 +72,5 @@ void kv_handle_client (int client_fd)
             }
         }
     }
+    return NULL;
 }
