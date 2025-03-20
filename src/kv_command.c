@@ -17,6 +17,7 @@ char* transaction_started = "started";
 char* transaction_already_started = "transaction is ongoing";
 char* transaction_committed = "commit";
 char* transaction_aborted = "rollback";
+char* transaction_not_started = "transaction is not ongoing";
 
 
 // todo: use parser
@@ -132,7 +133,7 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
     }
 
     if (is_transaction_started (command)) {
-        if (*tx_id >= 0) {
+        if (*tx_id > 0) {
             strcpy (result, transaction_already_started);
             return;
         }
@@ -214,10 +215,23 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
         }
     }
     else if (is_transaction_commited (command)) {
-        strcpy (result, transaction_committed);
+        if (*tx_id == 0) {
+            strcpy (result, transaction_not_started);
+        } else {
+            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, NULL, NULL);
+            *tx_id = 0;
+            strcpy (result, transaction_committed);
+        }
     }
     else if (is_transaction_aborted (command)) {
-        strcpy (result, transaction_aborted);
+        if (*tx_id == 0) {
+            strcpy (result, transaction_not_started);
+        } else {
+            kv_ru_add (*tx_id, KV_RU_ABORT, NULL, NULL, NULL);
+            kv_ru_undo (*tx_id);
+            *tx_id = 0;
+            strcpy (result, transaction_aborted);
+        }
     }
     else {
         strcpy(result, invalid_command);

@@ -251,6 +251,10 @@ void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, char *value, char
 
 void kv_ru_redo (struct kv_ht *ht)
 {
+    // 1. add abort
+    // 2. read kvdb
+    // 3. read log LSN and redo
+
     // char number[8];
     // memset (number, '0', 8);
     // char command;
