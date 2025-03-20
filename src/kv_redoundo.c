@@ -18,6 +18,7 @@
 #define ID_DIGIT_LEN 8
 #define KEY_DIGIT_LEN 2
 #define VAL_DIGIT_LEN 2
+#define LINE_DIGIT_LEN 4
 
 /*
  *  file format
@@ -56,10 +57,10 @@ ssize_t read_with_error (int fd, void *buf, size_t count)
     return nr;
 }
 
-off_t lseek_with_error (int fd, off_t cur, int whence)
+off_t lseek_with_error (int fd, off_t offset, int whence)
 {
     off_t ret;
-    ret = lseek (fd, cur, whence);
+    ret = lseek (fd, offset, whence);
     if (ret == (off_t) -1) {
         perror ("leek error");
         exit (1);
@@ -87,69 +88,27 @@ void read_eol (int fd)
     }
 }
 
-// void kv_redo_redo1 (struct kv_ht *ht)
-// {
-//     ssize_t nr;
+static int get_last_ru_id (int fd)
+{
+    char last_line_len_digit[LINE_DIGIT_LEN];
+    int last_line_len;
+    char last_ru_id_digit[ID_DIGIT_LEN];
+    int last_ru_id;
+    off_t position = lseek_with_error (fd, 0, SEEK_END);
 
-//     char number[8];
-//     memset (number, '0', 8);
-//     char command;
-//     char key_len_digit[4];
-//     int key_len;
-//     char val_len_digit[4];
-//     int val_len;
-//     char key[1024];
-//     char val[1024];
+    if (position == 0)
+        return 0;
 
-//     // todo: add log line to error string
-//     while (1) {
-//         nr = read_with_error (redo_log_read_fd, number, 8);
-//         if (nr == 0) {
-//             redo_id = digit_to_int (number, 8) + 1;
-//             break;
-//         }
-//         read_space (redo_log_read_fd);
+    lseek_with_error (fd, -LINE_DIGIT_LEN-1, SEEK_END);
+    read_with_error (fd, last_line_len_digit, LINE_DIGIT_LEN);
+    last_line_len = digit_to_int (last_line_len_digit, LINE_DIGIT_LEN);
 
-//         nr = read_with_error (redo_log_read_fd, &command, 1);
-//         read_space (redo_log_read_fd);
+    lseek_with_error (fd, -last_line_len, SEEK_END);
+    read_with_error (fd, last_ru_id_digit, ID_DIGIT_LEN);
+    last_ru_id = digit_to_int (last_ru_id_digit, ID_DIGIT_LEN);
 
-//         nr = read_with_error (redo_log_read_fd, key_len_digit, 4);
-//         // todo: key format check(\r\n existence)
-//         key_len = digit_to_int (key_len_digit, 4);
-//         read_space (redo_log_read_fd);
-
-//         nr = read_with_error (redo_log_read_fd, val_len_digit, 4);
-//         val_len = digit_to_int (val_len_digit, 4);
-//         read_space (redo_log_read_fd);
-
-
-//         if (command == 'S') {
-//             nr = read_with_error (redo_log_read_fd, key, key_len);
-//             key[key_len] = '\0';
-//             read_space (redo_log_read_fd);
-
-//             nr = read_with_error (redo_log_read_fd, val, val_len);
-//             val[val_len] = '\0';
-
-//             read_eol (redo_log_read_fd);
-
-//             kv_ht_set (ht, key, val);
-//         }
-//         else if (command == 'D') {
-//             nr = read_with_error (redo_log_read_fd, key, key_len);
-//             key[key_len] = '\0';
-
-//             read_eol (redo_log_read_fd);
-
-//             kv_ht_del (ht, key);
-//         }
-//         else {
-//             perror ("command error");
-//             exit (1);
-//         }
-//     }
-// }
-
+    return last_ru_id;
+}
 
 void kv_ru_init ()
 {
@@ -165,12 +124,14 @@ void kv_ru_init ()
         exit (1);
     }
 
-    last_ru_id = 0;
     pthread_mutex_init (&ru_lock, NULL);
+
+    last_ru_id = get_last_ru_id (ru_log_read_fd);
 }
 
 void kv_ru_destroy ()
 {
+    // todo: lock required?
     close (ru_log_write_fd);
     close (ru_log_read_fd);
 }
@@ -182,16 +143,23 @@ void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, char *value, char
     int key_len = key == NULL ? 0 : strlen (key);
     int val_len = value == NULL ? 0 : strlen (value);
     int old_len = old_value == NULL ? 0 : strlen (old_value);
+    // todo: calculate once
+    int line_len = (ID_DIGIT_LEN + 1) + (1 + ID_DIGIT_LEN + 1) + (1 + 1) +
+                    (KEY_DIGIT_LEN + 1) + (VAL_DIGIT_LEN + 1) + (VAL_DIGIT_LEN + 1) +
+                    (key_len + 1) + (val_len + 1) + (old_len + 1) +
+                    LINE_DIGIT_LEN + 1;
     int cur = 0;
     char id_digit[ID_DIGIT_LEN];
     char tx_digit[ID_DIGIT_LEN];
     char key_len_digit[KEY_DIGIT_LEN];
     char val_len_digit[VAL_DIGIT_LEN];
     char old_len_digit[VAL_DIGIT_LEN];
+    char line_len_digit[LINE_DIGIT_LEN];
     int_to_digit (ID_DIGIT_LEN, tx_id, tx_digit);
     int_to_digit (KEY_DIGIT_LEN, key_len, key_len_digit);
     int_to_digit (VAL_DIGIT_LEN, val_len, val_len_digit);
     int_to_digit (VAL_DIGIT_LEN, old_len, old_len_digit);
+    int_to_digit (LINE_DIGIT_LEN, line_len, line_len_digit);
 
     if (key_len + val_len + old_len > LOG_LINE_BUF_SIZE - 50) {  // todo: re-calculate 50
         perror ("too much long key and value");
@@ -211,32 +179,28 @@ void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, char *value, char
 
     switch (ru_type) {
         case KV_RU_BEGIN:
-            memcpy (log_line_buf + cur, "B", 1);
-            cur += 1;
+            memcpy (log_line_buf + cur, "B ", 2);
             break;
         case KV_RU_ABORT:
-            memcpy (log_line_buf + cur, "A", 1);
-            cur += 1;
+            memcpy (log_line_buf + cur, "A ", 2);
             break;
         case KV_RU_COMMIT:
-            memcpy (log_line_buf + cur, "C", 1);
-            cur += 1;
+            memcpy (log_line_buf + cur, "C ", 2);
             break;
         case KV_RU_WRITE:
             memcpy (log_line_buf + cur, "W ", 2);
-            cur += 2;
             break;
         case KV_RU_DELETE:
             memcpy (log_line_buf + cur, "D ", 2);
-            cur += 2;
             break;
         default:
             perror ("ru_type not handled");
             exit (1);
             break;
     }
+    cur += 2;
 
-    if (ru_type == KV_RU_WRITE || ru_type == KV_RU_DELETE) {
+    {
         memcpy (log_line_buf + cur, key_len_digit, KEY_DIGIT_LEN);
         cur += KEY_DIGIT_LEN;
         memcpy (log_line_buf + cur, " ", 1);
@@ -263,6 +227,9 @@ void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, char *value, char
         memcpy (log_line_buf + cur, " ", 1);
         cur += 1;
     }
+
+    memcpy (log_line_buf + cur, line_len_digit, LINE_DIGIT_LEN);
+    cur += LINE_DIGIT_LEN;
     
     memcpy (log_line_buf + cur, "\n", 1);
     cur += 1;
@@ -284,7 +251,63 @@ void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, char *value, char
 
 void kv_ru_redo (struct kv_ht *ht)
 {
-    // todo
+    // char number[8];
+    // memset (number, '0', 8);
+    // char command;
+    // char key_len_digit[4];
+    // int key_len;
+    // char val_len_digit[4];
+    // int val_len;
+    // char key[1024];
+    // char val[1024];
+
+    // // todo: add log line to error string
+    // while (1) {
+    //     nr = read_with_error (redo_log_read_fd, number, 8);
+    //     if (nr == 0) {
+    //         redo_id = digit_to_int (number, 8) + 1;
+    //         break;
+    //     }
+    //     read_space (redo_log_read_fd);
+
+    //     nr = read_with_error (redo_log_read_fd, &command, 1);
+    //     read_space (redo_log_read_fd);
+
+    //     nr = read_with_error (redo_log_read_fd, key_len_digit, 4);
+    //     // todo: key format check(\r\n existence)
+    //     key_len = digit_to_int (key_len_digit, 4);
+    //     read_space (redo_log_read_fd);
+
+    //     nr = read_with_error (redo_log_read_fd, val_len_digit, 4);
+    //     val_len = digit_to_int (val_len_digit, 4);
+    //     read_space (redo_log_read_fd);
+
+
+    //     if (command == 'S') {
+    //         nr = read_with_error (redo_log_read_fd, key, key_len);
+    //         key[key_len] = '\0';
+    //         read_space (redo_log_read_fd);
+
+    //         nr = read_with_error (redo_log_read_fd, val, val_len);
+    //         val[val_len] = '\0';
+
+    //         read_eol (redo_log_read_fd);
+
+    //         kv_ht_set (ht, key, val);
+    //     }
+    //     else if (command == 'D') {
+    //         nr = read_with_error (redo_log_read_fd, key, key_len);
+    //         key[key_len] = '\0';
+
+    //         read_eol (redo_log_read_fd);
+
+    //         kv_ht_del (ht, key);
+    //     }
+    //     else {
+    //         perror ("command error");
+    //         exit (1);
+    //     }
+    // }
 }
 
 void kv_ru_undo (int tx_id)
