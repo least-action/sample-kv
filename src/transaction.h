@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-void kv_tx_init (uint32_t initial_id);
+void kv_tx_init (int initial_id);
 
-uint32_t kv_tx_get_new_transaction ();
+int kv_tx_get_new_transaction ();
 
 #endif

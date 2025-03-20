@@ -3,6 +3,7 @@
 
 #include "kv_hash.h"
 #include <stddef.h>
+#include <stdint.h>
 
 int consume_command(struct kv_ht *ht, char *buffer, char *result, int *tx_id);
 

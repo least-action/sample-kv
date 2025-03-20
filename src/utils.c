@@ -19,3 +19,15 @@ int digit_to_int (char* digit, int digit_len)
     }
     return integer;
 }
+
+// todo: perf: to hex?
+void int_to_digit (int digit_len, int integer, char* buf)
+{
+    int quotient, remainder;
+    quotient = integer;
+    for (int i = 0; i < digit_len; ++i) {
+        remainder = quotient % 10;
+        quotient /= 10;
+        buf[digit_len-1-i] = (char) (remainder + 48);
+    }
+}

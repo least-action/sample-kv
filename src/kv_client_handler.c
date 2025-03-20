@@ -32,7 +32,7 @@ void* kv_handle_client (void *data)
      */
     char command[COMMAND_SIZE];
     int command_cur = 0;
-    int tx_id = -1;
+    int tx_id = 0;
     char result[RESULT_SIZE];
     size_t result_len;
     bool is_disconnected = false;
