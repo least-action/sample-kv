@@ -143,6 +143,7 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
     }
 
     if (is_command_get(command)) {
+        // todo: does single-command-get require transaction?
         if (*tx_id == 0) {
             *tx_id = kv_tx_get_new_transaction ();
             kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, NULL, NULL);
