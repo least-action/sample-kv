@@ -13,9 +13,10 @@ enum arg_state {
 
 int main(int argc, char* argv[])
 {
-    // todo: feature: file io multiplexing
     // todo: feature: transaction
-    // todo: bug: remove transaction context when client closed
+    // todo: use parser
+    // todo: add delete all command
+
     int server_termination_state;
     enum arg_state state = KV_ARG_READY;
     char* arg;
