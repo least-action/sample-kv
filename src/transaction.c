@@ -22,9 +22,9 @@ int kv_tx_get_new_transaction ()
 {
     int new_tx_id;
 
-    // pthread_mutex_lock (&tx_lock);
+    pthread_mutex_lock (&tx_lock);
     new_tx_id = ++transaction_id;
-    // pthread_mutex_unlock (&tx_lock);
+    pthread_mutex_unlock (&tx_lock);
 
     return new_tx_id;
 }
