@@ -252,8 +252,14 @@ void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, char *value, char
 void kv_ru_redo (struct kv_ht *ht)
 {
     // 1. add abort
+        // 1) find not finished transaction
+        // 2) execute kv_ru_add (tx_id, KV_RU_ABORT, NULL, NULL, NULL);
+
     // 2. read kvdb
+        // 1) build ht data from data.kvdb file
+
     // 3. read log LSN and redo
+        // 1) redu from LSN + 1
 
     // char number[8];
     // memset (number, '0', 8);
