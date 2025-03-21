@@ -1,6 +1,7 @@
 #include "kv_command.h"
 #include "kv_hash.h"
 #include "kv_redoundo.h"
+#include "transaction.h"
 #include "kv_server.h"
 #include "kv_client_handler.h"
 
@@ -29,6 +30,7 @@ int kv_run_server (uint16_t port)
 
     kv_ru_init ();
     kv_ru_redo (ht);
+    kv_tx_init ();
 
     server_fd = socket (AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {

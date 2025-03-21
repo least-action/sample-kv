@@ -44,30 +44,6 @@ static pthread_mutex_t ru_lock;
 char log_line_buf[LOG_LINE_BUF_SIZE];
 
 
-ssize_t read_with_error (int fd, void *buf, size_t count)
-{
-    ssize_t nr;
-    nr = read (fd, buf, count);
-    if (nr == 0)
-        return nr;
-    if (nr != count) {
-        perror ("redo log file format error");
-        exit (1);
-    }
-    return nr;
-}
-
-off_t lseek_with_error (int fd, off_t offset, int whence)
-{
-    off_t ret;
-    ret = lseek (fd, offset, whence);
-    if (ret == (off_t) -1) {
-        perror ("leek error");
-        exit (1);
-    }
-    return ret;
-}
-
 void read_space (int fd)
 {
     char space;
