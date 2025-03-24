@@ -233,6 +233,7 @@ void add_ru (void *nouse, void *data)
     char *digit = (char *) data;
     tx_id = digit_to_int (digit, ID_DIGIT_LEN);
     kv_ru_add (tx_id, KV_RU_ABORT, NULL, NULL, NULL);
+    kv_tx_end_transaction (tx_id);
 }
 
 void kv_ru_redo (struct kv_ht *ht)

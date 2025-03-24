@@ -22,13 +22,20 @@ static pthread_mutex_t tx_lock;
 
 void kv_tx_init ()
 {
+    begun_tx_fd = open (BEGUN_TX_FILE, O_CREAT | O_APPEND | O_WRONLY, 0644);
+    ended_tx_fd = open (ENDED_TX_FILE, O_CREAT | O_APPEND | O_WRONLY, 0644);
+
+    pthread_mutex_init (&tx_lock, NULL);
+}
+
+// todo: init2 ?
+void kv_tx_init2 ()
+{
     int last_tx_id;
     int begun_read_fd;
     off_t pos;
     char last_tx_digit[TX_DIGIT_LEN];
 
-    begun_tx_fd = open (BEGUN_TX_FILE, O_CREAT | O_APPEND | O_WRONLY, 0644);
-    ended_tx_fd = open (ENDED_TX_FILE, O_CREAT | O_APPEND | O_WRONLY, 0644);
     begun_read_fd = open (BEGUN_TX_FILE, O_RDONLY, 0644);
     pos = lseek_with_error (begun_read_fd, 0, SEEK_END);
     if (pos == 0)
@@ -41,7 +48,6 @@ void kv_tx_init ()
     close (begun_read_fd);
 
     transaction_id = last_tx_id;
-    pthread_mutex_init (&tx_lock, NULL);
 }
 
 void kv_tx_destroy ()

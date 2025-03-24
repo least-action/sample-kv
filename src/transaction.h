@@ -12,6 +12,7 @@
 // };
 
 void kv_tx_init ();
+void kv_tx_init2 ();
 
 int kv_tx_start_new_transaction ();
 

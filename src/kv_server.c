@@ -29,8 +29,9 @@ int kv_run_server (uint16_t port)
     ht = kv_ht_create (2);
 
     kv_ru_init ();
-    kv_ru_redo (ht);
     kv_tx_init ();
+    kv_ru_redo (ht);
+    kv_tx_init2 ();
 
     server_fd = socket (AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
