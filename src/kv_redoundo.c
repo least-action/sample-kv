@@ -1,6 +1,8 @@
 #include "kv_redoundo.h"
 #include "kv_hash.h"
 #include "utils.h"
+#include "linked_list.h"
+#include "transaction.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -225,14 +227,27 @@ void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, char *value, char
     }
 }
 
+void add_ru (void *nouse, void *data)
+{
+    int tx_id;
+    char *digit = (char *) data;
+    tx_id = digit_to_int (digit, ID_DIGIT_LEN);
+    kv_ru_add (tx_id, KV_RU_ABORT, NULL, NULL, NULL);
+}
+
 void kv_ru_redo (struct kv_ht *ht)
 {
+    struct kv_ll *ll;
     // 1. add abort
         // 1) find not finished transaction
         // 2) execute kv_ru_add (tx_id, KV_RU_ABORT, NULL, NULL, NULL);
+    ll = kv_tx_ongoing_transactions ();  // todo: kv_ll insert?
+    kv_ll_foreach (ll, add_ru, NULL);
+    free (ll);
 
     // 2. read kvdb
         // 1) build ht data from data.kvdb file
+        // todo: add snapshot thread
 
     // 3. read log LSN and redo
         // 1) redu from LSN + 1

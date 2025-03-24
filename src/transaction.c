@@ -7,6 +7,8 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <memory.h>
+
 
 #define TX_DIGIT_LEN 8
 
@@ -32,7 +34,7 @@ void kv_tx_init ()
     if (pos == 0)
         last_tx_id = 0;
     else {
-        lseek_with_error (begun_read_fd, -TX_DIGIT_LEN, SEEK_END);
+        lseek_with_error (begun_read_fd, -TX_DIGIT_LEN-1, SEEK_END);
         read_with_error (begun_read_fd, last_tx_digit, TX_DIGIT_LEN);
         last_tx_id = digit_to_int (last_tx_digit, TX_DIGIT_LEN);
     }
@@ -84,8 +86,53 @@ void kv_tx_end_transaction (int tx_id)
     }
 }
 
-struct kv_tx_id* kv_tx_ongoing_transactions ()
+static bool tx_id_equal (void *tx_id_1, void *tx_id_2)
 {
-    // todo
-    return NULL;
+    char *t1 = (char *) tx_id_1;
+    char *t2 = (char *) tx_id_2;
+
+    for (int i = 0; i < TX_DIGIT_LEN; ++i) {
+        if (t1[i] == t2[i])
+            continue;
+        return false;
+    }
+    return true;
+}
+
+struct kv_ll* kv_tx_ongoing_transactions ()
+{
+    // todo: perf linked list to hash set
+    FILE *b_tx_file, *e_tx_file;
+    char *key;
+
+    char buffer[TX_DIGIT_LEN + 2];
+    buffer[TX_DIGIT_LEN] = '\0';
+
+    b_tx_file = fopen (BEGUN_TX_FILE, "a+");
+    if (!b_tx_file) {
+        perror ("file fopen error: BEGUN_TX_FILE");
+        exit (1);
+    }
+    e_tx_file = fopen (ENDED_TX_FILE, "a+");
+    if (!e_tx_file) {
+        perror ("file fopen error: ENDED_TX_FILE");
+        exit (1);
+    }
+
+    struct kv_ll *ll = kv_ll_create (tx_id_equal);
+
+    while (fgets (buffer, TX_DIGIT_LEN + 2, b_tx_file) != NULL) {  // todo: check errno
+        key = (char *) malloc (sizeof (char) * TX_DIGIT_LEN);
+        memcpy (key, buffer, TX_DIGIT_LEN);
+        kv_ll_add (ll, key);
+    }
+
+    while (fgets (buffer, TX_DIGIT_LEN + 2, e_tx_file) != NULL) {
+        key = kv_ll_del (ll, buffer);
+        free (key);
+    }
+
+    fclose (b_tx_file);
+    fclose (e_tx_file);
+    return ll;
 }
