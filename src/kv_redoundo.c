@@ -239,6 +239,7 @@ void add_ru (void *nouse, void *data)
 void kv_ru_redo (struct kv_ht *ht)
 {
     struct kv_ll *ll;
+    int last_save_lsn = 0;
     // 1. add abort
         // 1) find not finished transaction
         // 2) execute kv_ru_add (tx_id, KV_RU_ABORT, NULL, NULL, NULL);
@@ -249,7 +250,6 @@ void kv_ru_redo (struct kv_ht *ht)
     // 2. read kvdb
         // 1) build ht data from data.kvdb file
         // todo: add snapshot thread
-
     // 3. read log LSN and redo
         // 1) redu from LSN + 1
 
