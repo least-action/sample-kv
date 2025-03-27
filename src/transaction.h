@@ -5,12 +5,6 @@
 
 #include "linked_list.h"
 
-// struct kv_tx_id {
-//     int tx_id;
-//     struct kv_tx_id *next;
-//     struct kv_tx_id *prev;
-// };
-
 void kv_tx_init ();
 void kv_tx_init2 ();
 

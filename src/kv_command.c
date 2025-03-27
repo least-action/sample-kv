@@ -178,6 +178,8 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
         value[strlen(value)-2] = '\0';
         get_result = kv_ht_get (ht, key);
         
+        // todo: kv_ru_add and kv_ht_set pair should not be interleaving other lock sharing pair.
+        //       If it occurs, current process and restored process are not same
         kv_ru_add (*tx_id, KV_RU_WRITE, key, value, get_result);
 
         kv_ht_set (ht, key, value);

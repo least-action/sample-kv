@@ -16,6 +16,8 @@ int main(int argc, char* argv[])
     // todo: feature: transaction
     // todo: use parser
     // todo: add delete all command
+    // todo: terminate main thread when child thread exited wtih error
+    // todo: remove exit(1)
 
     int server_termination_state;
     enum arg_state state = KV_ARG_READY;
