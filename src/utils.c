@@ -31,3 +31,27 @@ void int_to_digit (int digit_len, int integer, char* buf)
         buf[digit_len-1-i] = (char) (remainder + 48);
     }
 }
+
+off_t lseek_with_error (int fd, off_t offset, int whence)
+{
+    off_t ret;
+    ret = lseek (fd, offset, whence);
+    if (ret == (off_t) -1) {
+        perror ("leek error");
+        exit (1);
+    }
+    return ret;
+}
+
+ssize_t read_with_error (int fd, void *buf, size_t count)
+{
+    ssize_t nr;
+    nr = read (fd, buf, count);
+    if (nr == 0)
+        return nr;
+    if (nr != count) {
+        perror ("redo log file format error");
+        exit (1);
+    }
+    return nr;
+}

@@ -1,6 +1,8 @@
 #include "kv_redoundo.h"
 #include "kv_hash.h"
 #include "utils.h"
+#include "linked_list.h"
+#include "transaction.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -23,17 +25,17 @@
 /*
  *  file format
  *
- *  00000001 T00000001 B
- *  00000002 T00000001 W 03 05 00 key old_value NULL
- *  00000003 T00000001 C
- *  00000004 T00000002 B
- *  00000005 T00000002 D 03 00 05 key NULL old_value
- *  00000006 T00000003 D 03 00 00 name NULL NULL
- *  00000007 T00000002 A
- *  00000008 T00000003 B
- *  00000009 T00000003 W 04 07 00 name michale NULL
- *  00000010 T00000003 W 03 09 00 key old_value NULL
- *  00000011 T00000003 W 03 09 09 key new_value old_value
+ *  00000001 T00000001 B 00 00 00    0038
+ *  00000002 T00000001 W 03 05 00 key old_value NULL 0057
+ *  00000003 T00000001 C 00 00 00    0038
+ *  00000004 T00000002 B 00 00 00    0038
+ *  00000005 T00000002 D 03 00 05 key NULL old_value 0057
+ *  00000006 T00000003 D 03 00 00 name NULL NULL 0053
+ *  00000007 T00000002 A 00 00 00    0038
+ *  00000008 T00000003 B 00 00 00    0038
+ *  00000009 T00000003 W 04 07 00 name michale NULL 0056
+ *  00000010 T00000003 W 03 09 00 key old_value NULL 0057
+ *  00000011 T00000003 W 03 09 09 key new_value old_value 0062
  */
 
 
@@ -43,30 +45,6 @@ static int last_ru_id;
 static pthread_mutex_t ru_lock;
 char log_line_buf[LOG_LINE_BUF_SIZE];
 
-
-ssize_t read_with_error (int fd, void *buf, size_t count)
-{
-    ssize_t nr;
-    nr = read (fd, buf, count);
-    if (nr == 0)
-        return nr;
-    if (nr != count) {
-        perror ("redo log file format error");
-        exit (1);
-    }
-    return nr;
-}
-
-off_t lseek_with_error (int fd, off_t offset, int whence)
-{
-    off_t ret;
-    ret = lseek (fd, offset, whence);
-    if (ret == (off_t) -1) {
-        perror ("leek error");
-        exit (1);
-    }
-    return ret;
-}
 
 void read_space (int fd)
 {
@@ -249,11 +227,31 @@ void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, char *value, char
     }
 }
 
+void add_ru (void *nouse, void *data)
+{
+    int tx_id;
+    char *digit = (char *) data;
+    tx_id = digit_to_int (digit, ID_DIGIT_LEN);
+    kv_ru_add (tx_id, KV_RU_ABORT, NULL, NULL, NULL);
+    kv_tx_end_transaction (tx_id);
+}
+
 void kv_ru_redo (struct kv_ht *ht)
 {
+    struct kv_ll *ll;
+    int last_save_lsn = 0;
     // 1. add abort
+        // 1) find not finished transaction
+        // 2) execute kv_ru_add (tx_id, KV_RU_ABORT, NULL, NULL, NULL);
+    ll = kv_tx_ongoing_transactions ();  // todo: kv_ll insert?
+    kv_ll_foreach (ll, add_ru, NULL);
+    free (ll);
+
     // 2. read kvdb
+        // 1) build ht data from data.kvdb file
+        // todo: add snapshot thread
     // 3. read log LSN and redo
+        // 1) redu from LSN + 1
 
     // char number[8];
     // memset (number, '0', 8);

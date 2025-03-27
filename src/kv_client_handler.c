@@ -43,6 +43,7 @@ void* kv_handle_client (void *data)
         memset (buffer, 0, BUFFER_SIZE);
         int bytes_read = read (client_fd, buffer, BUFFER_SIZE - 1);
         if (bytes_read <= 0) {
+            // todo: end transaction
             close (client_fd);
             printf ("client disconnected\n");
             is_disconnected = true;
