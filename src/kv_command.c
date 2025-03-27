@@ -1,6 +1,7 @@
 #include "kv_command.h"
 #include "kv_hash.h"
 #include "kv_redoundo.h"
+#include "transaction.h"
 
 #include <string.h>
 #include <stdbool.h>
@@ -13,24 +14,17 @@ char* set_success = "OK";
 char* del_success = "1";
 char* del_not_found = "0";
 char* transaction_started = "started";
+char* transaction_already_started = "transaction is ongoing";
 char* transaction_committed = "commit";
 char* transaction_aborted = "rollback";
+char* transaction_not_started = "transaction is not ongoing";
 
-struct transaction_data {
-    int tx_id;
-    int start_id;
-    struct transaction_data *next;
-};
 
-struct transaction_data *td_list;
-
-// todo: use parser
 bool is_command_empty(char* command)
 {
     return (strlen(command) == 2) && (command[0] == '\r') && (command[1] == '\n');
 }
 
-// todo: add delete all command
 bool is_command_get(char* command)
 {
     return (strlen(command) > 4)
@@ -125,69 +119,125 @@ int find_end_of_command (char *buffer)
     return -1;
 }
 
-void run_command(struct kv_ht *ht, char* command, char* result)
+void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
 {
     char *get_result;
     int del_result;
+    bool is_single_command = false;
 
     if (is_command_empty(command)) {
         strcpy(result, "");
+        return;
     }
 
-    // get transaction data
+    if (is_transaction_started (command)) {
+        if (*tx_id > 0) {
+            strcpy (result, transaction_already_started);
+            return;
+        }
 
-    else if (is_command_get(command)) {
+        *tx_id = kv_tx_start_new_transaction ();
+        kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, NULL, NULL);
+        strcpy (result, transaction_started);
+        return;
+    }
+
+    if (is_command_get(command)) {
+        // todo: does single-command-get require transaction?
+        if (*tx_id == 0) {
+            *tx_id = kv_tx_start_new_transaction ();
+            kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, NULL, NULL);
+            is_single_command = true;
+        }
+
         command[strlen(command)-2] = '\0';
         get_result = kv_ht_get (ht, command+4);
         if (get_result == NULL)
             strcpy (result, get_notfound);
         else
             strcpy (result, get_result);
+
+        if (is_single_command) {
+            // commit: todo: release locks
+            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, NULL, NULL);
+            kv_tx_end_transaction (*tx_id);
+            *tx_id = 0;
+        }
     }
     else if (is_command_set(command)) {
+        if (*tx_id == 0) {
+            *tx_id = kv_tx_start_new_transaction ();
+            kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, NULL, NULL);
+            is_single_command = true;
+        }
+
         int value_start = get_value_start(command);
         command[value_start-1] = '\0';
         char *key = command+4;
         char *value = command + value_start;
         value[strlen(value)-2] = '\0';
+        get_result = kv_ht_get (ht, key);
         
-        kv_redo_add (REDO_SET, key, value);
-
-        get_result = kv_ht_get (ht, command+4);
-        if (get_result == NULL) {
-            kv_undo_add (UNDO_DEL, key, NULL);
-        }
-        else {
-            kv_undo_add (UNDO_SET, key, get_result);
-        }
+        // todo: kv_ru_add and kv_ht_set pair should not be interleaving other lock sharing pair.
+        //       If it occurs, current process and restored process are not same
+        kv_ru_add (*tx_id, KV_RU_WRITE, key, value, get_result);
 
         kv_ht_set (ht, key, value);
         strcpy(result, set_success);
+
+        if (is_single_command) {
+            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, NULL, NULL);
+            kv_tx_end_transaction (*tx_id);
+            *tx_id = 0;
+        }
     }
     else if (is_command_del(command)) {
+        if (*tx_id == 0) {
+            *tx_id = kv_tx_start_new_transaction ();
+            kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, NULL, NULL);
+            is_single_command = true;
+        }
+
         command[strlen(command)-2] = '\0';
         char *key = command+4;
 
-        kv_redo_add (REDO_DEL, key, NULL);
-
         get_result = kv_ht_get (ht, key);
+
+        kv_ru_add (*tx_id, KV_RU_DELETE, key, NULL, get_result);
 
         del_result = kv_ht_del (ht, key);
         if (del_result == 0)
             strcpy (result, del_not_found);
         else {
-            kv_undo_add (UNDO_SET, key, get_result);
             strcpy (result, del_success);
         }
-    }
-    else if (is_transaction_started (command)) {
-        strcpy (result, transaction_started);
+
+        if (is_single_command) {
+            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, NULL, NULL);
+            kv_tx_end_transaction (*tx_id);
+            *tx_id = 0;
+        }
     }
     else if (is_transaction_commited (command)) {
-        strcpy (result, transaction_committed);
+        if (*tx_id == 0) {
+            strcpy (result, transaction_not_started);
+        } else {
+            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, NULL, NULL);
+            kv_tx_end_transaction (*tx_id);
+            *tx_id = 0;
+            strcpy (result, transaction_committed);
+        }
     }
     else if (is_transaction_aborted (command)) {
-        strcpy (result, transaction_aborted);
+        if (*tx_id == 0) {
+            strcpy (result, transaction_not_started);
+        } else {
+            kv_ru_add (*tx_id, KV_RU_ABORT, NULL, NULL, NULL);
+            kv_ru_undo (*tx_id);
+            kv_tx_end_transaction (*tx_id);
+            *tx_id = 0;
+            strcpy (result, transaction_aborted);
+        }
     }
     else {
         strcpy(result, invalid_command);
@@ -206,7 +256,7 @@ int consume_command(struct kv_ht *ht, char *command, char *result, int *tx_id)
     memcpy (command, temp + end_of_command + 1, strlen (temp) - end_of_command - 1);
     temp[end_of_command + 1] = '\0';
 
-    run_command (ht, temp, result);
+    run_command (ht, temp, result, tx_id);
     return 1;
 }
 

@@ -16,8 +16,13 @@
 #define RESULT_SIZE 64
 
 
-void kv_handle_client (int client_fd)
+void* kv_handle_client (void *data)
 {
+    struct kv_handle_client_data *client_data;
+    client_data = (struct kv_handle_client_data *) data;
+    int client_fd = client_data->client_fd;
+    free (client_data);
+
     char buffer[BUFFER_SIZE];
     /*
      * command
@@ -26,17 +31,19 @@ void kv_handle_client (int client_fd)
      *                        idx(==7) = command_cur 
      */
     char command[COMMAND_SIZE];
-    int command_cur;
-    int tx_id;
+    int command_cur = 0;
+    int tx_id = 0;
     char result[RESULT_SIZE];
     size_t result_len;
-    bool is_disconnected;
+    bool is_disconnected = false;
+    int consume_count;
 
     while (!is_disconnected) {
         // todo: bug: when user send more than BUFFER_SIZE
         memset (buffer, 0, BUFFER_SIZE);
         int bytes_read = read (client_fd, buffer, BUFFER_SIZE - 1);
         if (bytes_read <= 0) {
+            // todo: end transaction
             close (client_fd);
             printf ("client disconnected\n");
             is_disconnected = true;
@@ -46,7 +53,7 @@ void kv_handle_client (int client_fd)
         // todo: bug: handle when command is longer than limit
         memcpy (command + command_cur, buffer, bytes_read);
         command_cur += bytes_read;
-        int consume_count;
+        
         while (1) {
             consume_count = consume_command (ht, command, result, &tx_id);
             if (consume_count == 0)
@@ -66,4 +73,5 @@ void kv_handle_client (int client_fd)
             }
         }
     }
+    return NULL;
 }

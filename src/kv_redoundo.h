@@ -3,30 +3,21 @@
 
 #include "kv_hash.h"
 
-enum RedoType {
-    REDO_SET,
-    REDO_DEL,
+#include <stdint.h>
+
+enum kv_ru_type {
+    KV_RU_BEGIN,
+    KV_RU_ABORT,
+    KV_RU_COMMIT,
+    KV_RU_WRITE,
+    KV_RU_DELETE,
 };
 
-void kv_redo_init (void);
+void kv_ru_init ();
+void kv_ru_destroy ();
+void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, char *value, char *old_value);
+void kv_ru_redo (struct kv_ht *ht);
+void kv_ru_undo (int tx_id);
 
-void kv_redo_add (enum RedoType redo_type, char *key, char *value);
-
-void kv_redo_redo (struct kv_ht *ht);
-
-void kv_redo_terminate (void);
-
-
-enum UndoType {
-    UNDO_SET,
-    UNDO_DEL,
-};
-
-int kv_undo_current_id (void);
-
-void kv_undo_add (enum UndoType undo_type, char *key, char *value);
-
-char* kv_undo_undo (char *key, char *value, int tx_id);
 
 #endif
-
