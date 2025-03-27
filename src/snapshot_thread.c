@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <stdio.h>
 
-static const time_t DELAY = 1;
+static const time_t DELAY = 5;
 
 void* kv_snapshot_thread (void *data)
 {
