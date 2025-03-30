@@ -121,6 +121,8 @@ int find_end_of_command (char *buffer)
 
 void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
 {
+    char *key;
+    char *value;
     char *get_result;
     int del_result;
     bool is_single_command = false;
@@ -151,7 +153,11 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
         }
 
         command[strlen(command)-2] = '\0';
+
+        // todo: feat: get rlock for key
         get_result = kv_ht_get (ht, command+4);
+        // todo: feat: unlock rlock
+
         if (get_result == NULL)
             strcpy (result, get_notfound);
         else
@@ -173,16 +179,21 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
 
         int value_start = get_value_start(command);
         command[value_start-1] = '\0';
-        char *key = command+4;
-        char *value = command + value_start;
+        key = command+4;
+        value = command + value_start;
         value[strlen(value)-2] = '\0';
-        get_result = kv_ht_get (ht, key);
-        
+
         // todo: kv_ru_add and kv_ht_set pair should not be interleaving other lock sharing pair.
         //       If it occurs, current process and restored process are not same
-        kv_ru_add (*tx_id, KV_RU_WRITE, key, value, get_result);
 
+        // todo: feat: get write lock of key
+
+        get_result = kv_ht_get (ht, key);
+        kv_ru_add (*tx_id, KV_RU_WRITE, key, value, get_result);
         kv_ht_set (ht, key, value);
+
+        // todo: feat: unlock write lock
+
         strcpy(result, set_success);
 
         if (is_single_command) {
@@ -199,13 +210,14 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
         }
 
         command[strlen(command)-2] = '\0';
-        char *key = command+4;
+        key = command+4;
 
+        // todo: feat: get wlock for key
         get_result = kv_ht_get (ht, key);
-
         kv_ru_add (*tx_id, KV_RU_DELETE, key, NULL, get_result);
-
         del_result = kv_ht_del (ht, key);
+        // todo: feat: unlock wlock
+
         if (del_result == 0)
             strcpy (result, del_not_found);
         else {
