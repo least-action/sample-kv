@@ -137,6 +137,7 @@ int kv_run_server (uint16_t port)
     pthread_join (snapshot_thread, (void *) &snapshot_thread_return);
     free (snapshot_arg);
     // todo: signal and join client handler threads
+    kv_lm_destruct (lm);
 
     close (server_fd);
     kv_ru_destroy ();
