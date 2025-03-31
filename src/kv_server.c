@@ -6,6 +6,7 @@
 #include "kv_client_handler.h"
 #include "snapshot_thread.h"
 #include "shutdown.h"
+#include "lock_manager.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,6 +55,7 @@ int kv_run_server (uint16_t port)
     pthread_t thread;
     int ret;
     struct kv_handle_client_data *data;
+    struct kv_lm *lm;
 
     ht = kv_ht_create (2);
 
@@ -61,6 +63,8 @@ int kv_run_server (uint16_t port)
     kv_tx_init ();
     kv_ru_redo (ht);
     kv_tx_init2 ();
+
+    lm = kv_lm_create ();
 
     pthread_mutex_init (&snapshot_terminate_lock, NULL);
     pthread_cond_init (&snapshot_terminate_cond, NULL);
@@ -117,6 +121,7 @@ int kv_run_server (uint16_t port)
 
         data = (struct kv_handle_client_data *) malloc (sizeof (struct kv_handle_client_data));
         data->client_fd = client_fd;
+        data->lm = lm;
         ret = pthread_create (&thread, NULL, (void*) kv_handle_client, data);  // todo: join?
         if (ret != 0) {
             errno = ret;

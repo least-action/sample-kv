@@ -2,6 +2,7 @@
 #include "kv_hash.h"
 #include "kv_redoundo.h"
 #include "transaction.h"
+#include "lock_manager.h"
 
 #include <string.h>
 #include <stdbool.h>
@@ -119,13 +120,16 @@ int find_end_of_command (char *buffer)
     return -1;
 }
 
-void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
+void run_command(struct kv_ht *ht, struct kv_lm *lm, char* command, char* result, int* tx_id)
 {
+    size_t command_len;
     char *key;
     char *value;
+    size_t key_len;
     char *get_result;
     int del_result;
     bool is_single_command = false;
+    struct kv_rwl *rwl;
 
     if (is_command_empty(command)) {
         strcpy(result, "");
@@ -153,10 +157,15 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
         }
 
         command[strlen(command)-2] = '\0';
+        key = command + 4;
+        key_len = 0;
 
-        // todo: feat: get rlock for key
-        get_result = kv_ht_get (ht, command+4);
-        // todo: feat: unlock rlock
+        rwl = kv_lm_get_rwlock (lm, key, key_len);
+        kv_rwl_rlock (rwl);
+        {
+            get_result = kv_ht_get (ht, command+4);
+        }
+        kv_rwl_un_rlock (rwl);
 
         if (get_result == NULL)
             strcpy (result, get_notfound);
@@ -180,19 +189,18 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
         int value_start = get_value_start(command);
         command[value_start-1] = '\0';
         key = command+4;
+        key_len = value_start - 4;
         value = command + value_start;
         value[strlen(value)-2] = '\0';
 
-        // todo: kv_ru_add and kv_ht_set pair should not be interleaving other lock sharing pair.
-        //       If it occurs, current process and restored process are not same
-
-        // todo: feat: get write lock of key
-
-        get_result = kv_ht_get (ht, key);
-        kv_ru_add (*tx_id, KV_RU_WRITE, key, value, get_result);
-        kv_ht_set (ht, key, value);
-
-        // todo: feat: unlock write lock
+        rwl = kv_lm_get_rwlock (lm, key, key_len);
+        kv_rwl_wlock (rwl);
+        {
+            get_result = kv_ht_get (ht, key);
+            kv_ru_add (*tx_id, KV_RU_WRITE, key, value, get_result);
+            kv_ht_set (ht, key, value);
+        }
+        kv_rwl_un_wlock (rwl);
 
         strcpy(result, set_success);
 
@@ -208,15 +216,20 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
             kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, NULL, NULL);
             is_single_command = true;
         }
+        command_len = strlen(command) - 2;
 
-        command[strlen(command)-2] = '\0';
+        command[command_len] = '\0';
         key = command+4;
+        key_len = command_len - 4;  // todo: bug: check +-1
 
-        // todo: feat: get wlock for key
-        get_result = kv_ht_get (ht, key);
-        kv_ru_add (*tx_id, KV_RU_DELETE, key, NULL, get_result);
-        del_result = kv_ht_del (ht, key);
-        // todo: feat: unlock wlock
+        rwl = kv_lm_get_rwlock (lm, key, key_len);
+        kv_rwl_wlock (rwl);
+        {
+            get_result = kv_ht_get (ht, key);
+            kv_ru_add (*tx_id, KV_RU_DELETE, key, NULL, get_result);
+            del_result = kv_ht_del (ht, key);
+        }
+        kv_rwl_un_wlock (rwl);
 
         if (del_result == 0)
             strcpy (result, del_not_found);
@@ -256,7 +269,7 @@ void run_command(struct kv_ht *ht, char* command, char* result, int* tx_id)
     }
 }
 
-int consume_command(struct kv_ht *ht, char *command, char *result, int *tx_id)
+int consume_command(struct kv_ht *ht, struct kv_lm *lm, char *command, char *result, int *tx_id)
 {
     int end_of_command = find_end_of_command (command);
     if (end_of_command == -1)
@@ -268,7 +281,6 @@ int consume_command(struct kv_ht *ht, char *command, char *result, int *tx_id)
     memcpy (command, temp + end_of_command + 1, strlen (temp) - end_of_command - 1);
     temp[end_of_command + 1] = '\0';
 
-    run_command (ht, temp, result, tx_id);
+    run_command (ht, lm, temp, result, tx_id);
     return 1;
 }
-
