@@ -2,6 +2,7 @@
 
 struct kv_lm
 {
+    char _reserved;
 };
 
 struct kv_lm* kv_lm_create (void)
