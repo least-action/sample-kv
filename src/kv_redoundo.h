@@ -15,7 +15,7 @@ enum kv_ru_type {
 
 void kv_ru_init ();
 void kv_ru_destroy ();
-void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, char *value, char *old_value);
+void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, size_t key_len, char *value, size_t val_len, char *old_value, size_t old_len);
 void kv_ru_redo (struct kv_ht *ht);
 void kv_ru_undo (int tx_id);
 

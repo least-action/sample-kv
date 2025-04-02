@@ -55,3 +55,13 @@ ssize_t read_with_error (int fd, void *buf, size_t count)
     }
     return nr;
 }
+
+size_t djb2(const char* str, size_t str_size)
+{
+    size_t hash = 5381;
+
+    for (size_t i = 0; i < str_size; ++i)
+        hash = ((hash << 5) + hash) + (size_t) str[i];
+
+    return hash;
+}

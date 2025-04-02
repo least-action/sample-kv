@@ -3,6 +3,7 @@
 #include "kv_redoundo.h"
 #include "transaction.h"
 #include "lock_manager.h"
+#include "utils.h"
 
 #include <string.h>
 #include <stdbool.h>
@@ -20,13 +21,22 @@ char* transaction_committed = "commit";
 char* transaction_aborted = "rollback";
 char* transaction_not_started = "transaction is not ongoing";
 
+struct key_data {
+    char *key;
+    size_t key_len;
+};
 
-bool is_command_empty(char* command)
+struct val_data {
+    char *value;
+    size_t val_len;
+};
+
+bool is_command_empty(const char* command)
 {
     return (strlen(command) == 2) && (command[0] == '\r') && (command[1] == '\n');
 }
 
-bool is_command_get(char* command)
+bool is_command_get(const char* command)
 {
     return (strlen(command) > 4)
         && (command[0] == 'g')
@@ -35,7 +45,7 @@ bool is_command_get(char* command)
         && (command[3] == ' ');
 }
 
-int space_count (char *command)
+int space_count (const char *command)
 {
     int count = 0;
     int idx = 0;
@@ -48,7 +58,7 @@ int space_count (char *command)
     return count;
 }
 
-bool is_command_set (char* command)
+bool is_command_set (const char* command)
 {
     return (strlen(command) > 4)
         && (command[0] == 's')
@@ -58,7 +68,7 @@ bool is_command_set (char* command)
         && (space_count (command) == 2);
 }
 
-bool is_command_del (char* command)
+bool is_command_del (const char* command)
 {
     return (strlen(command) > 4)
         && (command[0] == 'd')
@@ -67,7 +77,7 @@ bool is_command_del (char* command)
         && (command[3] == ' ');
 }
 
-bool is_transaction_started (char* command)
+bool is_transaction_started (const char* command)
 {
     return (strlen(command) ==  7)
         && (command[0] == 'b')
@@ -77,7 +87,7 @@ bool is_transaction_started (char* command)
         && (command[4] == 'n');
 }
 
-bool is_transaction_commited (char* command)
+bool is_transaction_commited (const char* command)
 {
     return (strlen(command) == 8)
         && (command[0] == 'c')
@@ -88,7 +98,7 @@ bool is_transaction_commited (char* command)
         && (command[5] == 't');
 }
 
-bool is_transaction_aborted (char* command)
+bool is_transaction_aborted (const char* command)
 {
     return (strlen(command) == 7)
         && (command[0] == 'a')
@@ -98,12 +108,20 @@ bool is_transaction_aborted (char* command)
         && (command[4] == 't');
 }
 
+__attribute__((deprecated("use get_key_len_of_set")))
 int get_value_start (char* command)
 {
     // todo: check value is valid string
     int cur = 4;
     while (command[cur++] != ' ');
     return cur;
+}
+
+int get_key_len_of_set (const char *command)
+{
+    int cur = 4;
+    while (command[++cur] != ' ');  // todo: bug: check key is not empty
+    return cur - 4;
 }
 
 int find_end_of_command (char *buffer)
@@ -120,16 +138,19 @@ int find_end_of_command (char *buffer)
     return -1;
 }
 
-void run_command(struct kv_ht *ht, struct kv_lm *lm, char* command, char* result, int* tx_id)
+void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const size_t command_len, char* result, int* tx_id)
 {
-    size_t command_len;
-    char *key;
-    char *value;
+    char *key = NULL;
+    char *value = NULL;
     size_t key_len;
-    char *get_result;
-    int del_result;
+    size_t value_len;
+    struct key_data *k_data = NULL;
+    struct val_data *v_data = NULL;
+    struct val_data *old_v_data = NULL;
+    struct kv_ht_kv old_kv = { NULL, NULL };
+
     bool is_single_command = false;
-    struct kv_rwl *rwl;
+    struct kv_rwl *rwl = NULL;
 
     if (is_command_empty(command)) {
         strcpy(result, "");
@@ -143,7 +164,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, char* command, char* result
         }
 
         *tx_id = kv_tx_start_new_transaction ();
-        kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, NULL, NULL);
+        kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, 0, NULL, 0, NULL, 0);
         strcpy (result, transaction_started);
         return;
     }
@@ -152,29 +173,33 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, char* command, char* result
         // todo: does single-command-get require transaction?
         if (*tx_id == 0) {
             *tx_id = kv_tx_start_new_transaction ();
-            kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, NULL, NULL);
+            kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, 0, NULL, 0, NULL, 0);
             is_single_command = true;
         }
 
-        command[strlen(command)-2] = '\0';
-        key = command + 4;
-        key_len = 0;
+        key_len = command_len - 4;
+        key = (char *) malloc (key_len);
+        memcpy (key, command + 4, key_len);
 
         rwl = kv_lm_get_rwlock (lm, key, key_len);
         kv_rwl_rlock (rwl);
         {
-            get_result = kv_ht_get (ht, command+4);
+            v_data = kv_ht_get (ht, key);
         }
         kv_rwl_un_rlock (rwl);
 
-        if (get_result == NULL)
+        free (key);
+
+        if (v_data == NULL)
             strcpy (result, get_notfound);
-        else
-            strcpy (result, get_result);
+        else {
+            memcpy (result, v_data->value, v_data->val_len);
+            result[v_data->val_len] = '\0';
+        }
 
         if (is_single_command) {
             // commit: todo: release locks
-            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, NULL, NULL);
+            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, 0, NULL, 0, NULL, 0);
             kv_tx_end_transaction (*tx_id);
             *tx_id = 0;
         }
@@ -182,30 +207,40 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, char* command, char* result
     else if (is_command_set(command)) {
         if (*tx_id == 0) {
             *tx_id = kv_tx_start_new_transaction ();
-            kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, NULL, NULL);
+            kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, 0, NULL, 0, NULL, 0);
             is_single_command = true;
         }
 
-        int value_start = get_value_start(command);
-        command[value_start-1] = '\0';
-        key = command+4;
-        key_len = value_start - 4;
-        value = command + value_start;
-        value[strlen(value)-2] = '\0';
+        key_len = get_key_len_of_set (command);
+        key = (char *) malloc (sizeof (char) * key_len);
+        memcpy (key, command+4, key_len);
+
+        value_len = command_len - key_len - 5;
+        value = (char *) malloc (sizeof (char) * value_len);
+        memcpy (value, command + key_len + 5, value_len);
+
+        k_data = (struct key_data *) malloc (sizeof (struct key_data));
+        k_data->key = key;
+        k_data->key_len = key_len;
+        v_data = (struct val_data *) malloc (sizeof (struct val_data));
+        v_data->value = value;
+        v_data->val_len = value_len;
 
         rwl = kv_lm_get_rwlock (lm, key, key_len);
         kv_rwl_wlock (rwl);
         {
-            get_result = kv_ht_get (ht, key);
-            kv_ru_add (*tx_id, KV_RU_WRITE, key, value, get_result);
-            kv_ht_set (ht, key, value);
+            old_v_data = kv_ht_get (ht, k_data);
+            kv_ru_add (*tx_id, KV_RU_WRITE, k_data->key, k_data->key_len, v_data->value, v_data->val_len, old_v_data->value, old_v_data->val_len);
+            old_v_data = kv_ht_set (ht, k_data, v_data);
         }
         kv_rwl_un_wlock (rwl);
 
+        free (old_v_data->value);
+        free (old_v_data);
         strcpy(result, set_success);
 
         if (is_single_command) {
-            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, NULL, NULL);
+            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, 0, NULL, 0, NULL, 0);
             kv_tx_end_transaction (*tx_id);
             *tx_id = 0;
         }
@@ -213,32 +248,48 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, char* command, char* result
     else if (is_command_del(command)) {
         if (*tx_id == 0) {
             *tx_id = kv_tx_start_new_transaction ();
-            kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, NULL, NULL);
+            kv_ru_add (*tx_id, KV_RU_BEGIN, NULL, 0, NULL, 0, NULL, 0);
             is_single_command = true;
         }
-        command_len = strlen(command) - 2;
 
-        command[command_len] = '\0';
-        key = command+4;
         key_len = command_len - 4;  // todo: bug: check +-1
+        key = (char *) malloc (key_len);
+        memcpy (key, command + 4, key_len);
 
         rwl = kv_lm_get_rwlock (lm, key, key_len);
         kv_rwl_wlock (rwl);
         {
-            get_result = kv_ht_get (ht, key);
-            kv_ru_add (*tx_id, KV_RU_DELETE, key, NULL, get_result);
-            del_result = kv_ht_del (ht, key);
+            old_v_data = kv_ht_get (ht, key);
+            if (old_v_data != NULL) {
+                kv_ru_add (*tx_id, KV_RU_DELETE, key, key_len, NULL, 0, old_v_data->value, old_v_data->val_len);
+                old_kv = kv_ht_del (ht, key);
+            }
+            else
+                old_kv = (struct kv_ht_kv) { NULL, NULL };
         }
         kv_rwl_un_wlock (rwl);
 
-        if (del_result == 0)
-            strcpy (result, del_not_found);
-        else {
+        free (key);
+
+        k_data = old_kv.key;
+        old_v_data = old_kv.value;
+        if (k_data != NULL && old_v_data != NULL) {
+            free (k_data->key);
+            free (k_data);
+            free (old_v_data->value);
+            free (old_v_data);
+
             strcpy (result, del_success);
+        }
+        else if (k_data == NULL && old_v_data == NULL) {
+            strcpy (result, del_not_found);
+        }
+        else {
+            // todo: handle error
         }
 
         if (is_single_command) {
-            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, NULL, NULL);
+            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, 0, NULL, 0, NULL, 0);
             kv_tx_end_transaction (*tx_id);
             *tx_id = 0;
         }
@@ -247,7 +298,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, char* command, char* result
         if (*tx_id == 0) {
             strcpy (result, transaction_not_started);
         } else {
-            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, NULL, NULL);
+            kv_ru_add (*tx_id, KV_RU_COMMIT, NULL, 0, NULL, 0, NULL, 0);
             kv_tx_end_transaction (*tx_id);
             *tx_id = 0;
             strcpy (result, transaction_committed);
@@ -257,7 +308,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, char* command, char* result
         if (*tx_id == 0) {
             strcpy (result, transaction_not_started);
         } else {
-            kv_ru_add (*tx_id, KV_RU_ABORT, NULL, NULL, NULL);
+            kv_ru_add (*tx_id, KV_RU_ABORT, NULL, 0, NULL, 0, NULL, 0);
             kv_ru_undo (*tx_id);
             kv_tx_end_transaction (*tx_id);
             *tx_id = 0;
@@ -271,16 +322,46 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, char* command, char* result
 
 int consume_command(struct kv_ht *ht, struct kv_lm *lm, char *command, char *result, int *tx_id)
 {
+    size_t command_len;
     int end_of_command = find_end_of_command (command);
     if (end_of_command == -1)
         return 0;
+    command_len = end_of_command - 1;
 
     char temp[128];  // todo: refactor: remove magic number
     memcpy (temp, command, 128);
     memset (command, 0, 128);
     memcpy (command, temp + end_of_command + 1, strlen (temp) - end_of_command - 1);
-    temp[end_of_command + 1] = '\0';
+    temp[end_of_command + 1] = '\0';  // todo: perf: remove setting '\0'
 
-    run_command (ht, lm, temp, result, tx_id);
+    // todo: pref: command len
+    run_command (ht, lm, temp, command_len, result, tx_id);
     return 1;
+}
+
+size_t str_hash_func (const void *key)
+{
+    struct key_data *data = (struct key_data *) key;
+    return djb2 (data->key, data->key_len);
+}
+
+int str_cmp_func (const void *key1, const void *key2)
+{
+    struct key_data *data1 = (struct key_data *) key1;
+    struct key_data *data2 = (struct key_data *) key2;
+    size_t min = data1->key_len < data2->key_len ? data1->key_len : data2->key_len;
+
+    for (size_t i = 0; i < min; ++i) {
+        if (data1->key[i] < data2->key[i])
+            return -1;
+        if (data1->key[i] > data2->key[i])
+            return 1;
+    }
+
+    if (data1->key_len == data2->key_len)
+        return 0;
+    else if (data1->key_len < data2->key_len)
+        return 1;
+    else
+        return -1;
 }

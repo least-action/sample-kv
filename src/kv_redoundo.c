@@ -115,12 +115,12 @@ void kv_ru_destroy ()
 }
 
 
-void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, char *value, char *old_value)
+void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, size_t key_len, char *value, size_t val_len, char *old_value, size_t old_len)
 {
     ssize_t nr;
-    int key_len = key == NULL ? 0 : strlen (key);
-    int val_len = value == NULL ? 0 : strlen (value);
-    int old_len = old_value == NULL ? 0 : strlen (old_value);
+    // int key_len = key == NULL ? 0 : strlen (key);
+    // int val_len = value == NULL ? 0 : strlen (value);
+    // int old_len = old_value == NULL ? 0 : strlen (old_value);
     // todo: calculate once
     int line_len = (ID_DIGIT_LEN + 1) + (1 + ID_DIGIT_LEN + 1) + (1 + 1) +
                     (KEY_DIGIT_LEN + 1) + (VAL_DIGIT_LEN + 1) + (VAL_DIGIT_LEN + 1) +
@@ -232,7 +232,7 @@ void add_ru (void *nouse, void *data)
     int tx_id;
     char *digit = (char *) data;
     tx_id = digit_to_int (digit, ID_DIGIT_LEN);
-    kv_ru_add (tx_id, KV_RU_ABORT, NULL, NULL, NULL);
+    kv_ru_add (tx_id, KV_RU_ABORT, NULL, 0, NULL, 0, NULL, 0);
     kv_tx_end_transaction (tx_id);
 }
 

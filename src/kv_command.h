@@ -10,4 +10,7 @@
 
 int consume_command(struct kv_ht *ht, struct kv_lm *lm, char *command, char *result, int *tx_id);
 
+size_t str_hash_func (const void *key);
+int str_cmp_func (const void *key1, const void *key2);
+
 #endif

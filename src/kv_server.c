@@ -30,6 +30,7 @@ void handle_sigint (int sig)
     is_running = 0;
 }
 
+
 int kv_run_server (uint16_t port)
 {
     if (signal (SIGINT, handle_sigint) == SIG_ERR) {
@@ -57,7 +58,7 @@ int kv_run_server (uint16_t port)
     struct kv_handle_client_data *data;
     struct kv_lm *lm;
 
-    ht = kv_ht_create (2);
+    ht = kv_ht_create (2, str_hash_func, str_cmp_func);
 
     kv_ru_init ();
     kv_tx_init ();

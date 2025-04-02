@@ -1,17 +1,24 @@
 #ifndef __KV_HASH_H__
 #define __KV_HASH_H__
 
+#include <stddef.h>
+
 struct kv_ht;
+struct kv_ht_kv {
+    void *key;
+    void *value;
+};
+typedef size_t (*hash_func_t) (const void *key);
+typedef int (*cmp_func_t) (const void *key, const void *key2);
 
-struct kv_ht* kv_ht_create (int size);
+struct kv_ht* kv_ht_create (int size, hash_func_t hash_fund, cmp_func_t cmp_func);
 
-char* kv_ht_get (struct kv_ht *ht, char *key);
+void* kv_ht_get (struct kv_ht *ht, void *key);
 
-/* 0: updated, 1: inserted new key */
-int kv_ht_set (struct kv_ht *ht, char *key, char *value);
+/* old value ptr: updated, NULL: inserted new key */
+void* kv_ht_set (struct kv_ht *ht, void *key, void *value);
 
 /* 0: key not found, 1: deleted */
-int kv_ht_del (struct kv_ht *ht, char *key);
+struct kv_ht_kv kv_ht_del (struct kv_ht *ht, void *key);
 
 #endif
-

@@ -10,4 +10,6 @@ void int_to_digit (int digit_len, int integer, char* buf);
 off_t lseek_with_error (int fd, off_t offset, int whence);
 ssize_t read_with_error (int fd, void *buf, size_t count);
 
+size_t djb2(const char* str, size_t str_size);
+
 #endif
