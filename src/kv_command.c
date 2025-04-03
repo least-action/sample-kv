@@ -108,18 +108,9 @@ bool is_transaction_aborted (const char* command)
         && (command[4] == 't');
 }
 
-__attribute__((deprecated("use get_key_len_of_set")))
-int get_value_start (char* command)
+size_t get_key_len_of_set (const char *command)
 {
-    // todo: check value is valid string
-    int cur = 4;
-    while (command[cur++] != ' ');
-    return cur;
-}
-
-int get_key_len_of_set (const char *command)
-{
-    int cur = 4;
+    size_t cur = 4;
     while (command[++cur] != ' ');  // todo: bug: check key is not empty
     return cur - 4;
 }
@@ -145,6 +136,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
     size_t key_len;
     size_t value_len;
     struct key_data *k_data = NULL;
+    struct key_data kd = { NULL, 0 };
     struct val_data *v_data = NULL;
     struct val_data *old_v_data = NULL;
     struct kv_ht_kv old_kv = { NULL, NULL };
@@ -180,11 +172,13 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         key_len = command_len - 4;
         key = (char *) malloc (key_len);
         memcpy (key, command + 4, key_len);
+        kd.key = key;
+        kd.key_len = key_len;
 
         rwl = kv_lm_get_rwlock (lm, key, key_len);
         kv_rwl_rlock (rwl);
         {
-            v_data = kv_ht_get (ht, key);
+            v_data = kv_ht_get (ht, &kd);
         }
         kv_rwl_un_rlock (rwl);
 
@@ -230,13 +224,18 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         kv_rwl_wlock (rwl);
         {
             old_v_data = kv_ht_get (ht, k_data);
-            kv_ru_add (*tx_id, KV_RU_WRITE, k_data->key, k_data->key_len, v_data->value, v_data->val_len, old_v_data->value, old_v_data->val_len);
+            if (old_v_data == NULL)
+                kv_ru_add (*tx_id, KV_RU_WRITE, k_data->key, k_data->key_len, v_data->value, v_data->val_len, NULL, 0);
+            else
+                kv_ru_add (*tx_id, KV_RU_WRITE, k_data->key, k_data->key_len, v_data->value, v_data->val_len, old_v_data->value, old_v_data->val_len);
             old_v_data = kv_ht_set (ht, k_data, v_data);
         }
         kv_rwl_un_wlock (rwl);
 
-        free (old_v_data->value);
-        free (old_v_data);
+        if (old_v_data != NULL) {
+            free (old_v_data->value);
+            free (old_v_data);
+        }
         strcpy(result, set_success);
 
         if (is_single_command) {
@@ -345,6 +344,7 @@ size_t str_hash_func (const void *key)
     return djb2 (data->key, data->key_len);
 }
 
+// todo: perf: is_equal?
 int str_cmp_func (const void *key1, const void *key2)
 {
     struct key_data *data1 = (struct key_data *) key1;

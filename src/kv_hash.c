@@ -46,6 +46,7 @@ static struct kv_ht_elem* kv_ht_get_elem (struct kv_ht *ht, void *key)
             return elem;
         elem = elem->next;
     }
+
     return NULL;
 }
 
@@ -170,4 +171,20 @@ struct kv_ht_kv kv_ht_del (struct kv_ht *ht, void *key)
         }
     }
     return old_data;
+}
+
+void kv_ht_foreach (struct kv_ht *ht, foreach_func_t foreach_func)
+{
+    struct kv_ht_elem *elem;
+    struct kv_ht_kv kv;
+
+    for (size_t pos = 0; pos < ht->size; ++pos) {
+        elem = ht->table[pos];
+        while (elem != NULL) {
+            kv.key = elem->key;
+            kv.value = elem->value;
+            foreach_func (kv);
+            elem = elem->next;
+        }
+    }
 }

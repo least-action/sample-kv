@@ -114,18 +114,14 @@ void kv_ru_destroy ()
     close (ru_log_read_fd);
 }
 
-
+static int line_len_default = (ID_DIGIT_LEN + 1) + (1 + ID_DIGIT_LEN + 1) + (1 + 1)
+                                + (KEY_DIGIT_LEN + 1) + (VAL_DIGIT_LEN + 1) + (VAL_DIGIT_LEN + 1)
+                                + 1 + 1 + 1
+                                + LINE_DIGIT_LEN + 1;
 void kv_ru_add (int tx_id, enum kv_ru_type ru_type, char *key, size_t key_len, char *value, size_t val_len, char *old_value, size_t old_len)
 {
     ssize_t nr;
-    // int key_len = key == NULL ? 0 : strlen (key);
-    // int val_len = value == NULL ? 0 : strlen (value);
-    // int old_len = old_value == NULL ? 0 : strlen (old_value);
-    // todo: calculate once
-    int line_len = (ID_DIGIT_LEN + 1) + (1 + ID_DIGIT_LEN + 1) + (1 + 1) +
-                    (KEY_DIGIT_LEN + 1) + (VAL_DIGIT_LEN + 1) + (VAL_DIGIT_LEN + 1) +
-                    (key_len + 1) + (val_len + 1) + (old_len + 1) +
-                    LINE_DIGIT_LEN + 1;
+    int line_len = line_len_default + key_len + val_len + old_len;
     int cur = 0;
     char id_digit[ID_DIGIT_LEN];
     char tx_digit[ID_DIGIT_LEN];
