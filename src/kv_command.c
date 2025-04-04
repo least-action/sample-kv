@@ -224,6 +224,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         kv_rwl_wlock (rwl);
         {
             old_v_data = kv_ht_get (ht, k_data);
+            // todo: bug: key data malloc free when updated
             if (old_v_data == NULL)
                 kv_ru_add (*tx_id, KV_RU_WRITE, k_data->key, k_data->key_len, v_data->value, v_data->val_len, NULL, 0);
             else
@@ -255,13 +256,16 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         key = (char *) malloc (key_len);
         memcpy (key, command + 4, key_len);
 
+        kd.key = key;
+        kd.key_len = key_len;
+
         rwl = kv_lm_get_rwlock (lm, key, key_len);
         kv_rwl_wlock (rwl);
         {
-            old_v_data = kv_ht_get (ht, key);
+            old_v_data = kv_ht_get (ht, &kd);
             if (old_v_data != NULL) {
                 kv_ru_add (*tx_id, KV_RU_DELETE, key, key_len, NULL, 0, old_v_data->value, old_v_data->val_len);
-                old_kv = kv_ht_del (ht, key);
+                old_kv = kv_ht_del (ht, &kd);
             }
             else
                 old_kv = (struct kv_ht_kv) { NULL, NULL };
