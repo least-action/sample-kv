@@ -4,77 +4,70 @@
 #include <assert.h>
 
 struct kv_ht_elem {
-    char *key;
-    char *value;
+    void *key;
+    void *value;
     struct kv_ht_elem *next;
 };
 
 struct kv_ht {
-    unsigned long size;
-    unsigned long count;
+    size_t size;
+    size_t count;
+    hash_func_t hash_func;
+    cmp_func_t cmp_func;
     struct kv_ht_elem **table;
 };
 
-unsigned long djb2(char* str)
-{
-    unsigned long hash = 5381;
-    int c;
 
-    while ((c = *str++))
-        hash = ((hash << 5) + hash) + c;
-
-    return hash;
-}
-
-unsigned long get_hash(char* str)
-{
-    return djb2(str);
-}
-
-struct kv_ht* kv_ht_create (int size)
+struct kv_ht* kv_ht_create (int size, hash_func_t hash_func, cmp_func_t cmp_func)
 {
     struct kv_ht *ht;
     ht = (struct kv_ht *) malloc (sizeof (struct kv_ht));
     assert (size > 0);
     ht->size = size;
     ht->count = 0;
+    ht->hash_func = hash_func;
+    ht->cmp_func = cmp_func;
     ht->table = (struct kv_ht_elem **) malloc (sizeof (struct kv_ht_elem *) * ht->size);
     memset (ht->table, '\0', sizeof (struct kv_ht_elem *) * ht->size);
     return ht;
 }
 
-struct kv_ht_elem* kv_ht_get_elem (struct kv_ht *ht, char *key)
+static struct kv_ht_elem* kv_ht_get_elem (struct kv_ht *ht, void *key)
 {
-    unsigned long hash = get_hash (key);
+    struct kv_ht_elem *elem;
+    size_t hash;
+
+    hash = ht->hash_func (key);
     hash %= ht->size;
 
-    struct kv_ht_elem *elem;
     elem = ht->table[hash];
     while (elem != NULL) {
-        if (strcmp (elem->key, key) == 0)
+        if (ht->cmp_func (elem->key, key) == 0)
             return elem;
         elem = elem->next;
     }
+
     return NULL;
 }
 
-char* kv_ht_get (struct kv_ht *ht, char *key)
+void* kv_ht_get (struct kv_ht *ht, void *key)
 {
     struct kv_ht_elem *elem;
     elem = kv_ht_get_elem (ht, key);
     return elem != NULL ? elem->value : NULL;
 }
 
-void kv_ht_resize (struct kv_ht *ht, unsigned long size)
+static void kv_ht_resize (struct kv_ht *ht, size_t size)
 {
     struct kv_ht_elem **new_table;
     struct kv_ht_elem *target;
     struct kv_ht_elem *last_elem;
-    unsigned long hash;
+    size_t hash;
+
     new_table = (struct kv_ht_elem **) malloc (sizeof (struct kv_ht_elem *) * size);
     for (int i = 0; i < ht->size; ++i) {
         while (ht->table[i] != NULL) {
-            hash = get_hash (ht->table[i]->key);
+            hash = ht->hash_func (ht->table[i]->key);
             hash %= size;
             target = ht->table[i];
             
@@ -97,87 +90,101 @@ void kv_ht_resize (struct kv_ht *ht, unsigned long size)
     ht->size = size;
 }
 
-int kv_ht_set (struct kv_ht *ht, char *key, char *value)
+void* kv_ht_set (struct kv_ht *ht, void *key, void *value)
 {
-    char *new_value;
-    int value_len = strlen (value) + 1;
-    new_value = malloc (value_len);
-    memcpy (new_value, value, value_len);
-
     struct kv_ht_elem *elem;
+    struct kv_ht_elem *new_elem;
+    struct kv_ht_elem *last_elem;
+    size_t hash;
+    void *old_value;
+
+    // todo: lock
     elem = kv_ht_get_elem (ht, key);
     if (elem != NULL) {
-        free (elem->value);
-        elem->value = new_value;
-        return 0;
+        old_value = elem->value;
+        elem->value = value;
+        return old_value;
     }
     if (ht->count > ht->size) {
         kv_ht_resize (ht, ht->size << 1);
     }
     
-    char *new_key;
-    int key_len = strlen (key) + 1;
-    new_key = malloc (key_len);
-    memcpy (new_key, key, key_len);
-    
-    struct kv_ht_elem *new_elem;
     new_elem = malloc (sizeof (struct kv_ht_elem));
-    new_elem->key = new_key;
-    new_elem->value = new_value;
+    new_elem->key = key;
+    new_elem->value = value;
     new_elem->next = NULL;
 
-    unsigned long hash = get_hash (key);
+    hash = ht->hash_func (key);
     hash %= ht->size;
 
-    struct kv_ht_elem *last_elem;
-    last_elem = ht->table[hash];
-    if (last_elem == NULL) {
+    if (ht->table[hash] == NULL) {
         ht->table[hash] = new_elem;
     }
     else {
+        last_elem = ht->table[hash];
         while (last_elem->next != NULL)
             last_elem = last_elem->next;
         last_elem->next = new_elem;
     }
 
     ++(ht->count);
-    return 1;
+    return NULL;
 }
 
-int kv_ht_del (struct kv_ht *ht, char *key)
+struct kv_ht_kv kv_ht_del (struct kv_ht *ht, void *key)
 {
-    unsigned long hash = get_hash (key);
-    hash %= ht->size;
-
+    size_t hash;
+    struct kv_ht_kv old_data;
+    old_data.key = NULL;
+    old_data.value = NULL;
     struct kv_ht_elem *elem;
     struct kv_ht_elem *temp;
+
+    hash = ht->hash_func (key);
+    hash %= ht->size;
+
     elem = ht->table[hash];
     if (elem == NULL)
-        return 0;
+        return old_data;
     
-    if (strcmp (elem->key, key) == 0) {
-        free (elem->key);
-        free (elem->value);
+    if (ht->cmp_func (elem->key, key) == 0) {
+        old_data.key = elem->key;
+        old_data.value = elem->value;
         ht->table[hash] = elem->next;
         free (elem);
         --(ht->count);
-        return 1;
+        return old_data;
     }
     
     else {
         while (elem != NULL && elem->next != NULL) {
-            if (strcmp (elem->next->key, key) == 0) {
-                free (elem->next->key);
-                free (elem->next->value);
+            if (ht->cmp_func (elem->next->key, key) == 0) {
+                old_data.key = elem->next->key;
+                old_data.value = elem->next->value;
                 temp = elem->next;
                 elem->next = elem->next->next;
                 free (temp);
                 --(ht->count);
-                return 1;
+                return old_data;
             }
             elem = elem->next;
         }
     }
-    return 0;
+    return old_data;
 }
 
+void kv_ht_foreach (struct kv_ht *ht, foreach_func_t foreach_func)
+{
+    struct kv_ht_elem *elem;
+    struct kv_ht_kv kv;
+
+    for (size_t pos = 0; pos < ht->size; ++pos) {
+        elem = ht->table[pos];
+        while (elem != NULL) {
+            kv.key = elem->key;
+            kv.value = elem->value;
+            foreach_func (kv);
+            elem = elem->next;
+        }
+    }
+}
