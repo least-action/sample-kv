@@ -252,7 +252,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
             is_single_command = true;
         }
 
-        key_len = command_len - 4;  // todo: bug: check +-1
+        key_len = command_len - 4;
         key = (char *) malloc (key_len);
         memcpy (key, command + 4, key_len);
 
