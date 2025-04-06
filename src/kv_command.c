@@ -180,7 +180,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         {
             v_data = kv_ht_get (ht, &kd);
         }
-        kv_rwl_un_rlock (rwl);
+        kv_rwl_unlock (rwl);
 
         free (key);
 
@@ -231,7 +231,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
                 kv_ru_add (*tx_id, KV_RU_WRITE, k_data->key, k_data->key_len, v_data->value, v_data->val_len, old_v_data->value, old_v_data->val_len);
             old_v_data = kv_ht_set (ht, k_data, v_data);
         }
-        kv_rwl_un_wlock (rwl);
+        kv_rwl_unlock (rwl);
 
         if (old_v_data != NULL) {
             free (old_v_data->value);
@@ -270,7 +270,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
             else
                 old_kv = (struct kv_ht_kv) { NULL, NULL };
         }
-        kv_rwl_un_wlock (rwl);
+        kv_rwl_unlock (rwl);
 
         free (key);
 

@@ -11,12 +11,14 @@ struct kv_lm* kv_lm_create (void)
     return lm;
 }
 
-int kv_lm_destruct (struct kv_lm *lm)
+int kv_lm_destroy (struct kv_lm *lm)
 {
+    // todo: destroy rwl
     free (lm);
     return 0;
 }
 
+// todo: perf: add remove rwlock process
 struct kv_rwl* kv_lm_get_rwlock (struct kv_lm *lm, char *key, size_t key_len)
 {
     // todo

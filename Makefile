@@ -4,7 +4,7 @@ TEST_DIR = test
 TARGET = a.out
 
 CC = gcc
-CFLAGS = -std=c99 -Wall -O2 -I$(SRC_DIR) -D_POSIX_C_SOURCE=199309L
+CFLAGS = -std=c99 -Wall -O2 -pthread -I$(SRC_DIR) -D_POSIX_C_SOURCE=200112L
 OBJS = main.o
 
 SRC_FILES = $(shell find $(SRC_DIR) -type f -name "*.c")
