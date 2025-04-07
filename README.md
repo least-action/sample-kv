@@ -1,5 +1,7 @@
 ## 개요
+database 및 시스템 프포그래밍 학습용 key value database repo
 
+## 기본 정책
 1.  다음과 같은 lock 정책을 사용.
     ```
             read  |  write
@@ -12,40 +14,8 @@
     * 2PL 은 직렬성을 보장해줄 수 있음.
     * rigorous(or strict) 2PL 은 dirty read 를 방지하여 연쇄 복구를 방지하여 복구 과정을 간소화 할 수 있음.
 
-3. UNDO 로그를 이용해 transaction rollback.
+3. REDO_UNDO 로그를 이용해 transaction rollback 및 복구
 
-4. REDO 로그와 UNDO 로그를 이용해 복구.
-
-
-## REDO log
-서버가 처리는 했지만 영구 저장장치(ex. hdd)에 쓰기 전 시스템 종료된 상황에 복구하기 위한 로그 데이터
-
-kvdb 파일에는 수행한 LSN 의 마지막 값을 포함하고 있음.
-멱등성을 위해서 INC 명령 대신 WRITE 명령으로 작성.
-
-### format
-{8자리 LSN} {W | D} {2자리 key len} {2자리 val len} {key} {value}
-```log
-00000001 W 03 05 key value
-00000002 D 03 00 key
-00000003 W 03 06 key value1
-00000004 W 04 07 name michale
-```
-
-## UNDO log
-
-kvdb 파일에는 수행한 LSN 의 마지막 값을 포함하고 있음.
-멱등성을 위해서 INC 명령 대신 WRITE 명령으로 작성.
-
-### format
-```log
-00000001 T00000001 B 
-00000002 T00000002 B
-00000003 T00000003 B
-00000004 T00000001 C
-00000005 T00000003 W 04 05 06 name henry george
-00000005 T00000002 A
-```
 
 ## REDO/UNDO log
 서버가 처리는 했지만 영구 저장장치(ex. hdd)에 쓰기 전 시스템 종료된 상황에 복구하기 위한 로그 데이터.
@@ -57,17 +27,14 @@ kvdb 파일에는 수행한 LSN 의 마지막 값을 포함하고 있음.
 ### format
 {8자리 LSN} T{Transaction ID} {W | D} {2자리 key len} {2자리 val len} {2자리 old val len} {key} {new value} {old value}
 ```log
-00000001 T00000001 B
-00000002 T00000001 W 03 05 00 key old_value NULL
-00000003 T00000001 C
-00000004 T00000002 B
-00000005 T00000002 D 03 05 key old_value
-00000006 T00000003 D 03 00 name NULL
-00000007 T00000002 A
-00000008 T00000003 B
-00000009 T00000003 W 04 07 00 name michale NULL
-00000010 T00000003 W 03 09 00 key old_value NULL
-00000011 T00000003 W 03 09 09 key new_value old_value
+00000001 T00000001 B 00 00 00    0038
+00000002 T00000001 W 03 05 00 key old_value NULL 0054
+00000003 T00000001 C 00 00 00    0038
+00000004 T00000002 B 00 00 00    0038
+00000005 T00000002 W 03 00 05 key NULL old_value 0054
+00000006 T00000003 W 03 03 00 name joe NULL 0049
+00000007 T00000002 A 00 00 00    0038
+00000008 T00000003 B 00 00 00    0038
 ```
 
 
