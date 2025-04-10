@@ -142,7 +142,6 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
     struct kv_ht_kv old_kv = { NULL, NULL };
 
     bool is_single_command = false;
-    struct kv_rwl *rwl = NULL;
 
     if (is_command_empty(command)) {
         strcpy(result, "");
@@ -175,12 +174,11 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         kd.key = key;
         kd.key_len = key_len;
 
-        rwl = kv_lm_get_rwlock (lm, key, key_len);
-        kv_rwl_rlock (rwl);
+        kv_lm_rlock (lm, key, key_len);
         {
             v_data = kv_ht_get (ht, &kd);
         }
-        kv_rwl_unlock (rwl);
+        kv_lm_unlock (lm, key, key_len);
 
         free (key);
 
@@ -220,8 +218,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         v_data->value = value;
         v_data->val_len = value_len;
 
-        rwl = kv_lm_get_rwlock (lm, key, key_len);
-        kv_rwl_wlock (rwl);
+        kv_lm_wlock (lm, key, key_len);
         {
             old_v_data = kv_ht_get (ht, k_data);
             // todo: bug: key data malloc free when updated
@@ -231,7 +228,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
                 kv_ru_add (*tx_id, KV_RU_WRITE, k_data->key, k_data->key_len, v_data->value, v_data->val_len, old_v_data->value, old_v_data->val_len);
             old_v_data = kv_ht_set (ht, k_data, v_data);
         }
-        kv_rwl_unlock (rwl);
+        kv_lm_unlock (lm, key, key_len);
 
         if (old_v_data != NULL) {
             free (old_v_data->value);
@@ -259,8 +256,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         kd.key = key;
         kd.key_len = key_len;
 
-        rwl = kv_lm_get_rwlock (lm, key, key_len);  // todo: fix: check null
-        kv_rwl_wlock (rwl);
+        kv_lm_wlock (lm, key, key_len);
         {
             old_v_data = kv_ht_get (ht, &kd);
             if (old_v_data != NULL) {
@@ -270,7 +266,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
             else
                 old_kv = (struct kv_ht_kv) { NULL, NULL };
         }
-        kv_rwl_unlock (rwl);
+        kv_lm_unlock (lm, key, key_len);
 
         free (key);
 
