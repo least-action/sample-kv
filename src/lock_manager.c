@@ -47,7 +47,7 @@ int kv_lm_rlock (struct kv_lm *lm, char *key, size_t key_len)
     atomic_fetch_add (&lm->counter, 1);
     pthread_rwlock_rdlock (&lm->lock);
     {
-        idx = hash / lm->size;
+        idx = hash % lm->size;
         pthread_rwlock_rdlock (&lm->lock_list[idx]);
     }
     pthread_rwlock_unlock (&lm->lock);
@@ -63,7 +63,7 @@ int kv_lm_wlock (struct kv_lm *lm, char *key, size_t key_len)
     atomic_fetch_add (&lm->counter, 1);
     pthread_rwlock_rdlock (&lm->lock);
     {
-        idx = hash / lm->size;
+        idx = hash % lm->size;
         pthread_rwlock_wrlock (&lm->lock_list[idx]);
     }
     pthread_rwlock_unlock (&lm->lock);
@@ -79,7 +79,7 @@ int kv_lm_unlock (struct kv_lm *lm, char *key, size_t key_len)
     atomic_fetch_sub (&lm->counter, 1);  // todo: check position of this line
     pthread_rwlock_rdlock (&lm->lock);
     {
-        idx = hash / lm->size;
+        idx = hash % lm->size;
         pthread_rwlock_unlock (&lm->lock_list[idx]);
     }
     pthread_rwlock_unlock (&lm->lock);
