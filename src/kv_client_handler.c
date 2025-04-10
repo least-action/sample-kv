@@ -1,7 +1,6 @@
 #include "kv_client_handler.h"
 #include "kv_server.h"
 #include "kv_command.h"
-#include "lock_manager.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +21,6 @@ void* kv_handle_client (void *data)
     struct kv_handle_client_data *client_data;
     client_data = (struct kv_handle_client_data *) data;
     int client_fd = client_data->client_fd;
-    struct kv_lm *lm = client_data->lm;
     free (client_data);
 
     char buffer[BUFFER_SIZE];
@@ -57,7 +55,7 @@ void* kv_handle_client (void *data)
         command_cur += bytes_read;
         
         while (1) {
-            consume_count = consume_command (ht, lm, command, result, &tx_id);
+            consume_count = consume_command (ht, command, result, &tx_id);
             if (consume_count == 0)
                 break;
             command_cur = strlen (command);
