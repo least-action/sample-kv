@@ -13,6 +13,8 @@ typedef int (*cmp_func_t) (const void *key, const void *key2);
 
 struct kv_ht* kv_ht_create (int size, hash_func_t hash_fund, cmp_func_t cmp_func);
 
+int kv_ht_destroy (struct kv_ht *ht);
+
 void* kv_ht_get (struct kv_ht *ht, void *key);
 
 /* old value ptr: updated, NULL: inserted new key */

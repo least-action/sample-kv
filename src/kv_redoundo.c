@@ -235,7 +235,7 @@ void add_ru (void *nouse, void *data)
 void kv_ru_redo (struct kv_ht *ht)
 {
     struct kv_ll *ll;
-    int last_save_lsn = 0;
+    // int last_save_lsn = 0;
     // 1. add abort
         // 1) find not finished transaction
         // 2) execute kv_ru_add (tx_id, KV_RU_ABORT, NULL, NULL, NULL);
