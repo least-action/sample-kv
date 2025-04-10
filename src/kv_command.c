@@ -2,12 +2,12 @@
 #include "kv_hash.h"
 #include "kv_redoundo.h"
 #include "transaction.h"
+#include "lock_manager.h"
 #include "utils.h"
 
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 
 char* invalid_command = "invalid_command";
@@ -129,7 +129,7 @@ int find_end_of_command (char *buffer)
     return -1;
 }
 
-void run_command(struct kv_ht *ht, const char* command, const size_t command_len, char* result, int* tx_id)
+void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const size_t command_len, char* result, int* tx_id)
 {
     char *key = NULL;
     char *value = NULL;
@@ -175,12 +175,12 @@ void run_command(struct kv_ht *ht, const char* command, const size_t command_len
         kd.key = key;
         kd.key_len = key_len;
 
-        // rwl = kv_lm_get_rwlock (lm, key, key_len);
-        // kv_rwl_rlock (rwl);
+        rwl = kv_lm_get_rwlock (lm, key, key_len);
+        kv_rwl_rlock (rwl);
         {
             v_data = kv_ht_get (ht, &kd);
         }
-        // kv_rwl_unlock (rwl);
+        kv_rwl_unlock (rwl);
 
         free (key);
 
@@ -220,8 +220,8 @@ void run_command(struct kv_ht *ht, const char* command, const size_t command_len
         v_data->value = value;
         v_data->val_len = value_len;
 
-        // rwl = kv_lm_get_rwlock (lm, key, key_len);
-        // kv_rwl_wlock (rwl);
+        rwl = kv_lm_get_rwlock (lm, key, key_len);
+        kv_rwl_wlock (rwl);
         {
             old_v_data = kv_ht_get (ht, k_data);
             // todo: bug: key data malloc free when updated
@@ -231,7 +231,7 @@ void run_command(struct kv_ht *ht, const char* command, const size_t command_len
                 kv_ru_add (*tx_id, KV_RU_WRITE, k_data->key, k_data->key_len, v_data->value, v_data->val_len, old_v_data->value, old_v_data->val_len);
             old_v_data = kv_ht_set (ht, k_data, v_data);
         }
-        // kv_rwl_unlock (rwl);
+        kv_rwl_unlock (rwl);
 
         if (old_v_data != NULL) {
             free (old_v_data->value);
@@ -259,8 +259,8 @@ void run_command(struct kv_ht *ht, const char* command, const size_t command_len
         kd.key = key;
         kd.key_len = key_len;
 
-        // rwl = kv_lm_get_rwlock (lm, key, key_len);  // todo: fix: check null
-        // kv_rwl_wlock (rwl);
+        rwl = kv_lm_get_rwlock (lm, key, key_len);  // todo: fix: check null
+        kv_rwl_wlock (rwl);
         {
             old_v_data = kv_ht_get (ht, &kd);
             if (old_v_data != NULL) {
@@ -270,7 +270,7 @@ void run_command(struct kv_ht *ht, const char* command, const size_t command_len
             else
                 old_kv = (struct kv_ht_kv) { NULL, NULL };
         }
-        // kv_rwl_unlock (rwl);
+        kv_rwl_unlock (rwl);
 
         free (key);
 
@@ -323,7 +323,7 @@ void run_command(struct kv_ht *ht, const char* command, const size_t command_len
     }
 }
 
-int consume_command(struct kv_ht *ht, char *command, char *result, int *tx_id)
+int consume_command(struct kv_ht *ht, struct kv_lm *lm, char *command, char *result, int *tx_id)
 {
     size_t command_len;
     int end_of_command = find_end_of_command (command);
@@ -338,7 +338,7 @@ int consume_command(struct kv_ht *ht, char *command, char *result, int *tx_id)
     temp[end_of_command + 1] = '\0';  // todo: perf: remove setting '\0'
 
     // todo: pref: command len
-    run_command (ht, temp, command_len, result, tx_id);
+    run_command (ht, lm, temp, command_len, result, tx_id);
     return 1;
 }
 
