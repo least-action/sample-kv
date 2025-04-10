@@ -259,7 +259,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         kd.key = key;
         kd.key_len = key_len;
 
-        rwl = kv_lm_get_rwlock (lm, key, key_len);
+        rwl = kv_lm_get_rwlock (lm, key, key_len);  // todo: fix: check null
         kv_rwl_wlock (rwl);
         {
             old_v_data = kv_ht_get (ht, &kd);
