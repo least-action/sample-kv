@@ -32,6 +32,13 @@ struct kv_ht* kv_ht_create (int size, hash_func_t hash_func, cmp_func_t cmp_func
     return ht;
 }
 
+int kv_ht_destroy (struct kv_ht *ht)
+{
+    // todo
+    // todo: add this function call in every create called
+    return 0;
+}
+
 static struct kv_ht_elem* kv_ht_get_elem (struct kv_ht *ht, void *key)
 {
     struct kv_ht_elem *elem;
