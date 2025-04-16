@@ -1,5 +1,5 @@
-#ifndef __KV_TRANSACTION_H__
-#define __KV_TRANSACTION_H__
+#ifndef __KV_TX_MANAGER_H__
+#define __KV_TX_MANAGER_H__
 
 #include <stdint.h>
 

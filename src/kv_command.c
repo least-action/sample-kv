@@ -1,7 +1,7 @@
 #include "kv_command.h"
 #include "kv_hash.h"
 #include "kv_redoundo.h"
-#include "transaction.h"
+#include "tx_manager.h"
 #include "lock_manager.h"
 #include "utils.h"
 

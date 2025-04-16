@@ -2,7 +2,7 @@
 #include "kv_hash.h"
 #include "utils.h"
 #include "linked_list.h"
-#include "transaction.h"
+#include "tx_manager.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
