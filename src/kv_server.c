@@ -4,6 +4,7 @@
 #include "tx_manager.h"
 #include "kv_server.h"
 #include "kv_client_handler.h"
+#include "kv_client_data.h"
 #include "snapshot_thread.h"
 #include "shutdown.h"
 #include "lock_manager.h"
@@ -55,15 +56,15 @@ int kv_run_server (uint16_t port)
 
     pthread_t thread;
     int ret;
-    struct kv_handle_client_data *data;
+    struct kv_handle_server_data *data;
     struct kv_lm *lm;
 
     ht = kv_ht_create (2, str_hash_func, str_cmp_func);
 
     kv_ru_init ();
-    kv_tx_init ();
+    kv_txm_init ();
     kv_ru_redo (ht);
-    kv_tx_init2 ();
+    kv_txm_init2 ();
 
     lm = kv_lm_create ();
 
@@ -120,7 +121,7 @@ int kv_run_server (uint16_t port)
             printf ("client disconnected\n");
         }
 
-        data = (struct kv_handle_client_data *) malloc (sizeof (struct kv_handle_client_data));
+        data = (struct kv_handle_server_data *) malloc (sizeof (struct kv_handle_server_data));  // free at kv_handle_client
         data->client_fd = client_fd;
         data->lm = lm;
         ret = pthread_create (&thread, NULL, (void*) kv_handle_client, data);  // todo: join?

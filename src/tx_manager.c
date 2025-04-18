@@ -1,5 +1,6 @@
 #include "tx_manager.h"
 #include "utils.h"
+#include "transaction.h"
 
 #include <pthread.h>
 #include <stdlib.h>
@@ -20,7 +21,7 @@ static int ended_tx_fd;
 static int transaction_id;
 static pthread_mutex_t tx_lock;
 
-void kv_tx_init ()
+void kv_txm_init ()
 {
     begun_tx_fd = open (BEGUN_TX_FILE, O_CREAT | O_APPEND | O_WRONLY, 0644);
     ended_tx_fd = open (ENDED_TX_FILE, O_CREAT | O_APPEND | O_WRONLY, 0644);
@@ -29,7 +30,7 @@ void kv_tx_init ()
 }
 
 // todo: init2 ?
-void kv_tx_init2 ()
+void kv_txm_init2 ()
 {
     int last_tx_id;
     int begun_read_fd;
@@ -50,15 +51,16 @@ void kv_tx_init2 ()
     transaction_id = last_tx_id;
 }
 
-void kv_tx_destroy ()
+void kv_txm_destroy ()
 {
     close (begun_tx_fd);
     close (ended_tx_fd);
     pthread_mutex_destroy (&tx_lock);
 }
 
-int kv_tx_start_new_transaction ()
+struct kv_tx* kv_txm_start_new_transaction ()
 {
+    struct kv_tx *new_tx;
     int new_tx_id;
     ssize_t nr;
     char tx_digit[TX_DIGIT_LEN+1];
@@ -66,6 +68,8 @@ int kv_tx_start_new_transaction ()
     pthread_mutex_lock (&tx_lock);
     new_tx_id = ++transaction_id;
     pthread_mutex_unlock (&tx_lock);
+
+    new_tx = kv_tx_create (new_tx_id);
 
     int_to_digit (TX_DIGIT_LEN, new_tx_id, tx_digit);
     tx_digit[TX_DIGIT_LEN] = '\n';
@@ -75,10 +79,30 @@ int kv_tx_start_new_transaction ()
         exit (1);
     }
 
-    return new_tx_id;
+    return new_tx;
 }
 
-void kv_tx_end_transaction (int tx_id)
+int kv_txm_end_transaction (struct kv_tx *tx)
+{
+    char tx_digit[TX_DIGIT_LEN+1];
+    ssize_t nr;
+    int tx_id;
+
+    tx_id = kv_tx_get_id (tx);
+    int_to_digit (TX_DIGIT_LEN, tx_id, tx_digit);
+    tx_digit[TX_DIGIT_LEN] = '\n';
+    nr = write (ended_tx_fd, tx_digit, TX_DIGIT_LEN+1);
+    if (nr == -1) {
+        perror ("write begun tx error");
+        exit (1);
+    }
+
+    kv_tx_destroy (tx);
+
+    return 0;
+}
+
+int kv_txm_add_end_log (int tx_id)
 {
     char tx_digit[TX_DIGIT_LEN+1];
     ssize_t nr;
@@ -90,6 +114,8 @@ void kv_tx_end_transaction (int tx_id)
         perror ("write begun tx error");
         exit (1);
     }
+
+    return 0;
 }
 
 static bool tx_id_equal (void *tx_id_1, void *tx_id_2)
@@ -105,7 +131,7 @@ static bool tx_id_equal (void *tx_id_1, void *tx_id_2)
     return true;
 }
 
-struct kv_ll* kv_tx_ongoing_transactions ()
+struct kv_ll* kv_txm_ongoing_transactions ()
 {
     // todo: perf linked list to hash set
     FILE *b_tx_file, *e_tx_file;

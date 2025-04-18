@@ -2,12 +2,13 @@
 #define __KV_CLIENT_HANDLER_H__
 
 #include "lock_manager.h"
+#include "transaction.h"
 
 #define BUFFER_SIZE 128
 #define COMMAND_SIZE 128
 #define RESULT_SIZE 64
 
-struct kv_handle_client_data {
+struct kv_handle_server_data {
     int client_fd;
     struct kv_lm *lm;
 };
