@@ -93,6 +93,12 @@ void* aa (void *data)
     printf("aa: try to get unlock\n");
     kv_rwl_unlock (lock);
     printf("aa: success\n");
+    printf("aa: try to get unlock\n");
+    kv_rwl_unlock (lock);
+    printf("aa: success\n");
+    printf("aa: try to get unlock\n");
+    kv_rwl_unlock (lock);
+    printf("aa: success\n");
 
     pthread_mutex_lock (&end_a);
     {
@@ -123,6 +129,9 @@ void* aa (void *data)
     kv_rwl_rlock (lock);
     printf("aa: success\n");
     usleep (1000000);
+    printf("aa: try to get unlock\n");
+    kv_rwl_unlock (lock);
+    printf("aa: success\n");
     printf("aa: try to get unlock\n");
     kv_rwl_unlock (lock);
     printf("aa: success\n");
@@ -157,6 +166,9 @@ void* aa (void *data)
     kv_rwl_wlock (lock);
     printf("aa: success\n");
     usleep (1000000);
+    printf("aa: try to get unlock\n");
+    kv_rwl_unlock (lock);
+    printf("aa: success\n");
     printf("aa: try to get unlock\n");
     kv_rwl_unlock (lock);
     printf("aa: success\n");
@@ -206,6 +218,9 @@ void* bb (void *data)
     kv_rwl_rlock (lock);
     printf("%sbb: success\n", btab);
     usleep (1000000);
+    printf("%sbb: try to get unlock\n", btab);
+    kv_rwl_unlock (lock);
+    printf("%sbb: success\n", btab);
 
     pthread_mutex_lock (&end_b);
     {
@@ -238,6 +253,9 @@ void* bb (void *data)
     kv_rwl_wlock (lock);
     printf("%sbb: success\n", btab);
     usleep (1000000);
+    printf("%sbb: try to get unlock\n", btab);
+    kv_rwl_unlock (lock);
+    printf("%sbb: success\n", btab);
     printf("%sbb: try to get unlock\n", btab);
     kv_rwl_unlock (lock);
     printf("%sbb: success\n", btab);
