@@ -8,6 +8,7 @@
 #include "snapshot_thread.h"
 #include "shutdown.h"
 #include "lock_manager.h"
+#include "tx_snapshot.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,16 +49,20 @@ int kv_run_server (uint16_t port)
     struct sockaddr_in client_addr;
     socklen_t addr_len = sizeof (client_addr);
 
+    pthread_cond_t server_terminate_cond;
+    pthread_mutex_t server_terminate_lock;
+
     pthread_t snapshot_thread;
     char snapshot_thread_return;
-    pthread_cond_t snapshot_terminate_cond;
-    pthread_mutex_t snapshot_terminate_lock;
     struct kv_snapshot_arg *snapshot_arg;
 
     pthread_t thread;
     int ret;
     struct kv_handle_server_data *data;
     struct kv_lm *lm;
+
+    pthread_t tx_snapshot_thread;
+    struct kv_tx_snapshot_arg *tx_snapshot_arg;
 
     ht = kv_ht_create (2, str_hash_func, str_cmp_func);
 
@@ -68,15 +73,26 @@ int kv_run_server (uint16_t port)
 
     lm = kv_lm_create ();
 
-    pthread_mutex_init (&snapshot_terminate_lock, NULL);
-    pthread_cond_init (&snapshot_terminate_cond, NULL);
+    pthread_mutex_init (&server_terminate_lock, NULL);
+    pthread_cond_init (&server_terminate_cond, NULL);
+
     snapshot_arg = (struct kv_snapshot_arg *) malloc (sizeof (struct kv_snapshot_arg));
-    snapshot_arg->terminate_cond = &snapshot_terminate_cond;
-    snapshot_arg->terminate_lock = &snapshot_terminate_lock;
+    snapshot_arg->terminate_cond = &server_terminate_cond;
+    snapshot_arg->terminate_lock = &server_terminate_lock;
     ret = pthread_create (&snapshot_thread, NULL, (void*) kv_snapshot_thread, snapshot_arg);
     if (ret != 0) {
         errno = ret;
         perror ("pthread(snapshot) create error");
+    }
+
+    
+    tx_snapshot_arg = (struct kv_tx_snapshot_arg *) malloc (sizeof (struct kv_tx_snapshot_arg));
+    tx_snapshot_arg->terminate_cond = &server_terminate_cond;
+    tx_snapshot_arg->terminate_lock = &server_terminate_lock;
+    ret = pthread_create (&tx_snapshot_thread, NULL, (void *) kv_tx_snapshot_handler, tx_snapshot_arg);
+    if (ret != 0) {
+        errno = ret;
+        perror ("pthread(tx_snapshot) create error");
     }
 
     server_fd = socket (AF_INET, SOCK_STREAM, 0);
@@ -133,11 +149,14 @@ int kv_run_server (uint16_t port)
         }
     }
 
-    pthread_mutex_lock (&snapshot_terminate_lock);
-    pthread_cond_signal (&snapshot_terminate_cond);
-    pthread_mutex_unlock (&snapshot_terminate_lock);
+    pthread_mutex_lock (&server_terminate_lock);
+    {
+        pthread_cond_broadcast (&server_terminate_cond);
+    }
+    pthread_mutex_unlock (&server_terminate_lock);
     pthread_join (snapshot_thread, (void *) &snapshot_thread_return);
     free (snapshot_arg);
+    free (tx_snapshot_arg);
     // todo: signal and join client handler threads
     kv_lm_destroy (lm);
 

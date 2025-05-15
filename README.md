@@ -10,7 +10,6 @@ database 및 시스템 프포그래밍 학습용 key value database repo
     ```
     
 2. rigorous 2PL(2 Phase Lock) 을 사용.
-    * strict 2PL 과 차이점을 잘 이해하지 못하겠음.
     * 2PL 은 직렬성을 보장해줄 수 있음.
     * rigorous(or strict) 2PL 은 dirty read 를 방지하여 연쇄 복구를 방지하여 복구 과정을 간소화 할 수 있음.
 

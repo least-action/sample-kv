@@ -239,6 +239,4 @@ test/results/*
 *.swp
 .vscode
 
-ru_log.kvdb
-begun_tx.kvdb
-ended_tx.kvdb
+*.kvdb

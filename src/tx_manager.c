@@ -15,8 +15,10 @@
 
 #define BEGUN_TX_FILE "begun_tx.kvdb"
 #define ENDED_TX_FILE "ended_tx.kvdb"
+#define TX_LIST_FILE "tx_list.kvdb"
 static int begun_tx_fd;
 static int ended_tx_fd;
+static int tx_list_fd;
 
 static int transaction_id;
 static pthread_mutex_t tx_lock;
