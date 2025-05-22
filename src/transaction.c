@@ -3,7 +3,7 @@
 
 #include <stdlib.h>
 
-static struct lock_elem {
+struct lock_elem {
     struct kv_rwl *rwl;
     struct lock_elem *next;
 };
@@ -31,4 +31,10 @@ int kv_tx_destroy (struct kv_tx *tx)
 int kv_tx_get_id (struct kv_tx *tx)
 {
     return tx->id;
+}
+
+int kv_tx_rollback (struct kv_tx *tx)
+{
+    // todo
+    return 0;
 }
