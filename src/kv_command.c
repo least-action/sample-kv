@@ -229,11 +229,11 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
             // todo: bug: key data malloc free when updated
             if (old_v_data == NULL) {
                 // kv_ru_add (kv_tx_get_id (c_data->tx), KV_RU_WRITE, k_data->key, k_data->key_len, v_data->value, v_data->val_len, NULL, 0);
-                new_lsn_id = kv_recovery_update_log (kv_tx_prev_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
+                new_lsn_id = kv_recovery_update_log (kv_tx_prev_lsn (c_data->tx), kv_tx_get_id (c_data->tx), k_data->key, k_data->key_len, NULL, 0, v_data->value, v_data->val_len);
                 kv_tx_set_prev_lsn (c_data->tx, new_lsn_id);
             } else {
                 // kv_ru_add (kv_tx_get_id (c_data->tx), KV_RU_WRITE, k_data->key, k_data->key_len, v_data->value, v_data->val_len, old_v_data->value, old_v_data->val_len);
-                new_lsn_id = kv_recovery_update_log (kv_tx_prev_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
+                new_lsn_id = kv_recovery_update_log (kv_tx_prev_lsn (c_data->tx), kv_tx_get_id (c_data->tx), k_data->key, k_data->key_len, old_v_data->value, old_v_data->val_len, v_data->value, v_data->val_len);
                 kv_tx_set_prev_lsn (c_data->tx, new_lsn_id);
             }
             old_v_data = kv_ht_set (ht, k_data, v_data);
@@ -274,7 +274,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
             old_v_data = kv_ht_get (ht, &kd);
             if (old_v_data != NULL) {
                 // kv_ru_add (kv_tx_get_id (c_data->tx), KV_RU_DELETE, key, key_len, NULL, 0, old_v_data->value, old_v_data->val_len);
-                new_lsn_id = kv_recovery_update_log (kv_tx_prev_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
+                new_lsn_id = kv_recovery_update_log (kv_tx_prev_lsn (c_data->tx), kv_tx_get_id (c_data->tx), key, key_len, old_v_data->value, old_v_data->val_len, NULL, 0);
                 kv_tx_set_prev_lsn (c_data->tx, new_lsn_id);
                 old_kv = kv_ht_del (ht, &kd);
             }

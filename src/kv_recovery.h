@@ -40,6 +40,7 @@
  */
 
 #include <stdint.h>
+#include <stddef.h>
 
 typedef uint32_t lsn_id;
 
@@ -50,7 +51,7 @@ int kv_recovery_destroy ();
 
 int kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id);
 int kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id);
-int kv_recovery_update_log (lsn_id prev_id, uint32_t tx_id);
+int kv_recovery_update_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len);
 int kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id);
 int kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id);
 int kv_recovery_check_log (lsn_id prev_id, uint32_t tx_id);

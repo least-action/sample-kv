@@ -8,7 +8,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-
 int consume_command(struct kv_ht *ht, struct kv_lm *lm, char *command, char *result, struct kv_client_data *c_data);
 
 size_t str_hash_func (const void *key);
