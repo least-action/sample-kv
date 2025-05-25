@@ -39,18 +39,25 @@
  * 012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678|0123456789012345678901234567
  */
 
- /*
-  * 
-  */
+#include <stdint.h>
 
-#include <pthread.h>
+typedef uint32_t lsn_id;
 
-extern pthread_mutex_t kv_ru_lock;
+enum kv_recovery_log_type {
+    KV_REC_BEGIN,
+    KV_REC_COMMIT,
+    KV_REC_UPDATE,
+    KV_REC_ABORT,
+    KV_REC_CLR,
+    KV_REC_CHECK,
+    KV_REC_END
+};
 
 int kv_recovery_recover ();
 
 int kv_recovery_init ();
 int kv_recovery_destroy ();
-int kv_recovery_add_log ();  // todo: add param
+int kv_recovery_add_log (lsn_id prev_id, uint32_t tx_id, enum kv_recovery_log_type log_type);
+
  
 #endif
