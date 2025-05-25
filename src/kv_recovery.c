@@ -14,15 +14,14 @@ FILE *recovery_file;
 static uint32_t lsn;
 static pthread_mutex_t lsn_lock;
 
-const char* log_type_str[] = {
-    "BEGIN__",
-    "COMMIT_",
-    "UPDATE_",
-    "ABORT__",
-    "CLR____",
-    "CHECK__",
-    "END____",
-};
+static const char BEGIN_TYPE[]      = "BEGIN__";
+static const char COMMIT_TYPE[]     = "COMMIT_";
+static const char UPDATE_TYPE[]     = "UPDATE_";
+static const char ABORT_TYPE[]      = "ABORT__";
+static const char CLR_TYPE[]        = "CLR____";
+static const char CHECK_TYPE[]      = "CHECK__";
+static const char END_TYPE[]        = "END____";
+
 
 int kv_recovery_recover ()
 {
@@ -72,60 +71,19 @@ int kv_recovery_destroy ()
     return 0;
 }
 
-static int lsn_id_to_hex (uint32_t lsn_id, char* hex)
-{
-    if (LSN_ID_HEX_LEN != sizeof (lsn_id) * 2) {
-        return 1;
-    }
-
-    uint32_t filter;
-    uint32_t digit;    
-    
-    filter = 0x0000000f;
-
-    for (int i = 0; i < LSN_ID_HEX_LEN; ++i) {
-        digit = (lsn_id & filter) >> (i * 4);
-        hex[LSN_ID_HEX_LEN - i - 1] = digit + 48;
-        filter <<= 4;
-    }
-
-    return 0;
-}
-
-static int tx_id_to_hex (uint32_t tx_id, char* hex)
-{
-    return lsn_id_to_hex (tx_id, hex);
-}
-
-int kv_recovery_add_log (uint32_t prev_id, uint32_t tx_id, enum kv_recovery_log_type log_type)
+int kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id)
 {
     uint32_t new_lsn;
-    // char lsn_hex[LSN_ID_HEX_LEN+1];
-    // char prev_lsn_hex[LSN_ID_HEX_LEN+1];
-    // char tx_id_hex[TX_ID_HEX_LEN+1];
     char line[MAX_LINE_LEN];
     
-    // lsn_hex[LSN_ID_HEX_LEN] = '\0';
-    // prev_lsn_hex[LSN_ID_HEX_LEN] = '\0';
-    // tx_id_hex[TX_ID_HEX_LEN] = '\0';
-
-    
-    // lsn_id_to_hex (prev_id, prev_lsn_hex);
-    // tx_id_to_hex (tx_id, tx_id_hex);
-
-    // printf("%u %u %u\n", new_lsn, prev_id, tx_id);
-
-    
-
     pthread_mutex_lock (&lsn_lock);
     {
         new_lsn = ++lsn;
-        // lsn_id_to_hex (new_lsn, lsn_hex);
         snprintf (
             line, MAX_LINE_LEN,
             "%08x %08x T%08x %s\n",
-            new_lsn, prev_id, tx_id, log_type_str[log_type]
-        );
+            new_lsn, prev_id, tx_id, BEGIN_TYPE
+        );  // todo: perf: use more efficient (ex. memset)
         
         if (fputs (line, recovery_file) == EOF) {
             // todo: error handling
@@ -133,7 +91,143 @@ int kv_recovery_add_log (uint32_t prev_id, uint32_t tx_id, enum kv_recovery_log_
     }
     pthread_mutex_unlock (&lsn_lock);
 
+    return new_lsn;
+}
+
+int kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id)
+{
+    uint32_t new_lsn;
+    char line[MAX_LINE_LEN];
     
-    // todo
+    pthread_mutex_lock (&lsn_lock);
+    {
+        new_lsn = ++lsn;
+        snprintf (
+            line, MAX_LINE_LEN,
+            "%08x %08x T%08x %s\n",
+            new_lsn, prev_id, tx_id, COMMIT_TYPE
+        );  // todo: perf: use more efficient (ex. memset)
+        
+        if (fputs (line, recovery_file) == EOF) {
+            // todo: error handling
+        }
+    }
+    pthread_mutex_unlock (&lsn_lock);
+
+    return new_lsn;
+}
+
+int kv_recovery_update_log (lsn_id prev_id, uint32_t tx_id)
+{
+    uint32_t new_lsn;
+    char line[MAX_LINE_LEN];
+    
+    pthread_mutex_lock (&lsn_lock);
+    {
+        new_lsn = ++lsn;
+        snprintf (
+            line, MAX_LINE_LEN,
+            "%08x %08x T%08x %s\n",
+            new_lsn, prev_id, tx_id, UPDATE_TYPE
+        );  // todo: perf: use more efficient (ex. memset)
+        
+        if (fputs (line, recovery_file) == EOF) {
+            // todo: error handling
+        }
+    }
+    pthread_mutex_unlock (&lsn_lock);
+
+    return new_lsn;
+}
+
+int kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id)
+{
+    uint32_t new_lsn;
+    char line[MAX_LINE_LEN];
+    
+    pthread_mutex_lock (&lsn_lock);
+    {
+        new_lsn = ++lsn;
+        snprintf (
+            line, MAX_LINE_LEN,
+            "%08x %08x T%08x %s\n",
+            new_lsn, prev_id, tx_id, ABORT_TYPE
+        );  // todo: perf: use more efficient (ex. memset)
+        
+        if (fputs (line, recovery_file) == EOF) {
+            // todo: error handling
+        }
+    }
+    pthread_mutex_unlock (&lsn_lock);
+
+    return new_lsn;
+}
+
+int kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id)
+{
+    uint32_t new_lsn;
+    char line[MAX_LINE_LEN];
+    
+    pthread_mutex_lock (&lsn_lock);
+    {
+        new_lsn = ++lsn;
+        snprintf (
+            line, MAX_LINE_LEN,
+            "%08x %08x T%08x %s\n",
+            new_lsn, prev_id, tx_id, CLR_TYPE
+        );  // todo: perf: use more efficient (ex. memset)
+        
+        if (fputs (line, recovery_file) == EOF) {
+            // todo: error handling
+        }
+    }
+    pthread_mutex_unlock (&lsn_lock);
+
+    return new_lsn;
+}
+
+int kv_recovery_check_log (lsn_id prev_id, uint32_t tx_id)
+{
+    uint32_t new_lsn;
+    char line[MAX_LINE_LEN];
+    
+    pthread_mutex_lock (&lsn_lock);
+    {
+        new_lsn = ++lsn;
+        snprintf (
+            line, MAX_LINE_LEN,
+            "%08x %08x T%08x %s\n",
+            new_lsn, prev_id, tx_id, CHECK_TYPE
+        );  // todo: perf: use more efficient (ex. memset)
+        
+        if (fputs (line, recovery_file) == EOF) {
+            // todo: error handling
+        }
+    }
+    pthread_mutex_unlock (&lsn_lock);
+
+    return new_lsn;
+}
+
+int kv_recovery_end_log (lsn_id prev_id, uint32_t tx_id)
+{
+    uint32_t new_lsn;
+    char line[MAX_LINE_LEN];
+    
+    pthread_mutex_lock (&lsn_lock);
+    {
+        new_lsn = ++lsn;
+        snprintf (
+            line, MAX_LINE_LEN,
+            "%08x %08x T%08x %s\n",
+            new_lsn, prev_id, tx_id, END_TYPE
+        );  // todo: perf: use more efficient (ex. memset)
+        
+        if (fputs (line, recovery_file) == EOF) {
+            // todo: error handling
+        }
+    }
+    pthread_mutex_unlock (&lsn_lock);
+
     return new_lsn;
 }

@@ -30,9 +30,9 @@
  * 00000002 00000001 T00000001 UPDATE_ 03 03 00 key old
  * 00000003 00000000 T00000002 BEGIN__
  * 00000004 00000003 T00000002 UPDATE_ 05 06 08 key00 oldval newvalue
- * 00000005 00000000 000000000 CHECK_S T00000001 T00000002
+ * 00000005 00000000 000000000 CHECK__ T00000001 T00000002
  * 00000006 00000002 T00000001 COMMIT_
- * 00000007 00000000 000000000 CHECK_S T00000002
+ * 00000007 00000000 000000000 CHECK__ T00000002
  * 00000008 00000004 T00000002 ABORT__ 
  * 00000009 00000005 T00000002 CLR____ 00000005 05 06 key00 oldval
  * 
@@ -43,21 +43,18 @@
 
 typedef uint32_t lsn_id;
 
-enum kv_recovery_log_type {
-    KV_REC_BEGIN,
-    KV_REC_COMMIT,
-    KV_REC_UPDATE,
-    KV_REC_ABORT,
-    KV_REC_CLR,
-    KV_REC_CHECK,
-    KV_REC_END
-};
-
 int kv_recovery_recover ();
 
 int kv_recovery_init ();
 int kv_recovery_destroy ();
-int kv_recovery_add_log (lsn_id prev_id, uint32_t tx_id, enum kv_recovery_log_type log_type);
+
+int kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id);
+int kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id);
+int kv_recovery_update_log (lsn_id prev_id, uint32_t tx_id);
+int kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id);
+int kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id);
+int kv_recovery_check_log (lsn_id prev_id, uint32_t tx_id);
+int kv_recovery_end_log (lsn_id prev_id, uint32_t tx_id);
 
  
 #endif
