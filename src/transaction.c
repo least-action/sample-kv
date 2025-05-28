@@ -60,7 +60,10 @@ int kv_tx_rollback (struct kv_tx *tx)
         log_line = kv_recovery_get_log (next_crl_lsn);
 
         if (log_line->log_type == KV_REC_UPDATE) {
-            new_lsn = kv_recovery_clr_log (kv_tx_last_lsn (tx), kv_tx_get_id (tx), log_line->prev_lsn);
+            new_lsn = kv_recovery_clr_log (
+                kv_tx_last_lsn (tx), kv_tx_get_id (tx), log_line->prev_lsn,
+                log_line->key, log_line->key_len, log_line->new_val, log_line->new_len, log_line->old_val, log_line->old_len
+            );
             kv_tx_set_last_lsn (tx, new_lsn);
             next_crl_lsn = log_line->prev_lsn;
         } else if (log_line->log_type == KV_REC_BEGIN) {

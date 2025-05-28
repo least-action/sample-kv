@@ -70,6 +70,7 @@ void* kv_handle_client (void *data)
                 strcpy (result + strlen(result), "\r\n");
             result_len = strlen (result) + 1;
 
+            // todo: bug: rollback when closed without commit
             if (write (client_fd, result, result_len) < result_len) {
                 perror ("failed to write");
                 close (client_fd);
