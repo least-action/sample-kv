@@ -380,8 +380,9 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     while ((fgets (line, KV_RECOVERY_MAX_LINE_LEN, recovery_file)) != NULL) {  // todo: perf
         memcpy (lsn_hex, line, 8);
         line_lsn = hex_to_uint32 (lsn_hex);
-        if (line_lsn != lsn)
-            continue;
+        
+        if (line_lsn == lsn)
+            break;
     }
     if (line_lsn != lsn) {
         // todo: error handling
@@ -394,7 +395,8 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     pos += 8 + 1;
     prev_lsn = hex_to_uint32 (lsn_hex);
 
-    memcpy (lsn_hex, line + pos + 1, 8);
+    pos += 1;
+    memcpy (lsn_hex, line + pos, 8);
     pos += 8 + 1;
     tx_id = hex_to_uint32 (lsn_hex);
     memcpy (log_type_char, line + pos, LOG_TYPE_LEN);

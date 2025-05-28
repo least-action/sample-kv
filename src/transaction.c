@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
 
 struct lock_elem {
     struct kv_rwl *rwl;
@@ -58,6 +59,11 @@ int kv_tx_rollback (struct kv_tx *tx)
     next_crl_lsn = tx->last_lsn;
     while (1) {
         log_line = kv_recovery_get_log (next_crl_lsn);
+        if (log_line == NULL) {
+            // todo: error handling
+            perror ("log_line NULL");
+            exit (1);
+        }
 
         if (log_line->log_type == KV_REC_UPDATE) {
             new_lsn = kv_recovery_clr_log (
