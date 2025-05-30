@@ -20,7 +20,7 @@
 // #define RU_LOG_FILE_NAME "ru_log.kvdb"
 // #define LOG_LINE_BUF_SIZE 1024
 // #define ID_DIGIT_LEN 8
-// #define KEY_DIGIT_LEN 2
+// #define KEY_DIGIT_LEN 2log_line->log_type == KV_REC_UPDATE
 // #define VAL_DIGIT_LEN 2
 // #define LINE_DIGIT_LEN 4
 

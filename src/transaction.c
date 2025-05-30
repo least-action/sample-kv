@@ -1,10 +1,12 @@
 #include "transaction.h"
 #include "lock_rwlock.h"
 #include "kv_recovery.h"
+#include "kv_command.h"
 
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 struct lock_elem {
     struct kv_rwl *rwl;
@@ -49,13 +51,21 @@ int kv_tx_set_last_lsn (struct kv_tx *tx, uint32_t new_lsn)
     return 0;
 }
 
-int kv_tx_rollback (struct kv_tx *tx)
+int kv_tx_rollback (struct kv_tx *tx, struct kv_ht *ht, struct kv_lm *lm)
 {
     uint32_t new_lsn;
     uint32_t next_crl_lsn;
     struct kv_recovery_log_line *log_line;
+    struct kv_ht_kv del_data;
+    struct key_data *del_key_data;
+    struct val_data *del_val_data;
 
-    // process undo
+    char *key = NULL;
+    char *value = NULL;
+    struct key_data *k_data = NULL;
+    struct val_data *v_data = NULL;
+    struct val_data *prev_v_data = NULL;
+
     next_crl_lsn = tx->last_lsn;
     while (1) {
         log_line = kv_recovery_get_log (next_crl_lsn);
@@ -65,21 +75,86 @@ int kv_tx_rollback (struct kv_tx *tx)
             exit (1);
         }
 
-        if (log_line->log_type == KV_REC_UPDATE) {
+        if (log_line->log_type == KV_REC_BEGIN) {
+            kv_recovery_destroy_log_line (log_line);
+            break;
+        }
+
+        if (log_line->log_type != KV_REC_UPDATE) {
+            next_crl_lsn = log_line->prev_lsn;
+            kv_recovery_destroy_log_line (log_line);
+            continue;
+        }
+
+        // if log_type is UPDATE
+        if (log_line->old_len != 0) {
+            // restore value
+            key = (char *) malloc (log_line->key_len);
+            memcpy (key, log_line->key, log_line->key_len);
+            value = (char *) malloc (log_line->old_len);
+            memcpy (value, log_line->old_val, log_line->old_len);
+
+            // todo: bug: key data malloc free when updated
+            k_data = (struct key_data *) malloc (sizeof (struct key_data));
+            k_data->key = key;
+            k_data->key_len = log_line->key_len;
+            v_data = (struct val_data *) malloc (sizeof (struct val_data));
+            v_data->value = value;
+            v_data->val_len = log_line->old_len;
+
+            // no need to key lock
             new_lsn = kv_recovery_clr_log (
                 kv_tx_last_lsn (tx), kv_tx_get_id (tx), log_line->prev_lsn,
                 log_line->key, log_line->key_len, log_line->new_val, log_line->new_len, log_line->old_val, log_line->old_len
             );
             kv_tx_set_last_lsn (tx, new_lsn);
-            next_crl_lsn = log_line->prev_lsn;
-        } else if (log_line->log_type == KV_REC_BEGIN) {
-            kv_recovery_destroy_log_line (log_line);
-            break;
+
+            prev_v_data = kv_ht_set (ht, k_data, v_data);
+            if (prev_v_data != NULL) {
+                free (prev_v_data->value);
+                free (prev_v_data);
+            }
         } else {
-            // pass
+            // delete value
+            if (log_line->new_len == 0) {
+                new_lsn = kv_recovery_clr_log (
+                    kv_tx_last_lsn (tx), kv_tx_get_id (tx), log_line->prev_lsn,
+                    log_line->key, log_line->key_len, NULL, 0, NULL, 0
+                );
+                kv_tx_set_last_lsn (tx, new_lsn);
+            } else {
+                key = (char *) malloc (log_line->key_len);
+                memcpy (key, log_line->key, log_line->key_len);
+
+                // todo: bug: key data malloc free when updated
+                k_data = (struct key_data *) malloc (sizeof (struct key_data));
+                k_data->key = key;
+                k_data->key_len = log_line->key_len;
+                v_data = (struct val_data *) malloc (sizeof (struct val_data));
+                v_data->value = value;
+                v_data->val_len = log_line->old_len;
+
+                new_lsn = kv_recovery_clr_log (
+                    kv_tx_last_lsn (tx), kv_tx_get_id (tx), log_line->prev_lsn,
+                    log_line->key, log_line->key_len, log_line->new_val, log_line->new_len, NULL, 0
+                );
+                kv_tx_set_last_lsn (tx, new_lsn);
+
+                del_data = kv_ht_del (ht, k_data);
+
+                del_key_data = del_data.key;  // todo: check
+                del_val_data = del_data.value;
+                if (del_key_data != NULL && del_val_data != NULL) {
+                    free (del_key_data->key);
+                    free (del_key_data);
+                    free (del_val_data->value);
+                    free (del_val_data);
+                }
+                free (key);
+                free (k_data);
+            }
         }
         next_crl_lsn = log_line->prev_lsn;
-
         kv_recovery_destroy_log_line (log_line);
     }
 

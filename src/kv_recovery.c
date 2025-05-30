@@ -122,7 +122,7 @@ static size_t from_2_digit_hex (char *hex)
 
     hex_val = 0;
     for (int i = 0; i < 2; ++i) {
-        hex_val += (hex[i] - 48) << (2-i);
+        hex_val += (hex[i] - 48) << (1-i);
     }
 
     return hex_val;

@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <stdio.h>
 
 struct kv_ht_elem {
     void *key;
@@ -151,8 +152,10 @@ struct kv_ht_kv kv_ht_del (struct kv_ht *ht, void *key)
     hash %= ht->size;
 
     elem = ht->table[hash];
-    if (elem == NULL)
+    if (elem == NULL) {
         return old_data;
+    }
+        
     
     if (ht->cmp_func (elem->key, key) == 0) {
         old_data.key = elem->key;
