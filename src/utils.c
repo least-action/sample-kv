@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+
 int digit_to_int (char* digit, int digit_len)
 {
     int integer = 0;
@@ -64,4 +65,28 @@ size_t djb2(const char* str, size_t str_size)
         hash = ((hash << 5) + hash) + (size_t) str[i];
 
     return hash;
+}
+
+static char hex_array[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+char get_hex (uint32_t i)
+{
+    return hex_array[i];
+}
+
+/*
+ * ascii
+ * 30 : 0
+ * 31 : 1
+ * ..
+ * 41 : A
+ * 42 : B
+ * ..
+ */
+static uint32_t from_hex_array[] = {
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 0, 0, 0, 0,
+    0, 0, 10, 11, 12, 13, 14, 15
+};
+uint32_t from_hex (char hex)
+{
+    return from_hex_array[hex - 48];
 }

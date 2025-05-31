@@ -7,15 +7,19 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 
-struct lock_elem {
-    struct kv_rwl *rwl;
-    struct lock_elem *next;
+struct kv_tx_lock_elem {
+    char *key;
+    size_t key_len;
+    struct kv_tx_lock_elem *prev;
+    struct kv_tx_lock_elem *next;
 };
 
 struct kv_tx {
     uint32_t id;
-    struct lock_elem *head;
+    struct kv_tx_lock_elem *lock_head;
+    struct kv_tx_lock_elem *lock_tail;
     uint32_t last_lsn;
 };
 
@@ -25,12 +29,15 @@ struct kv_tx* kv_tx_create (int tx_id)
     tx = (struct kv_tx *) malloc (sizeof (struct kv_tx));
     tx->id = tx_id;
     tx->last_lsn = 0;
+    tx->lock_head = NULL;
+    tx->lock_tail = NULL;
 
     return tx;
 }
 
 int kv_tx_destroy (struct kv_tx *tx)
 {
+    // todo: check lock_head empty
     free (tx);
     return 0;
 }
@@ -164,5 +171,42 @@ int kv_tx_rollback (struct kv_tx *tx, struct kv_ht *ht, struct kv_lm *lm)
     
     // unlock rwlock
 
+    return 0;
+}
+
+int kv_tx_add_lock (struct kv_tx *tx, char *key, size_t key_len, bool is_rlock)
+{
+    struct kv_tx_lock_elem *new_elem;
+
+    new_elem = (struct kv_tx_lock_elem *) malloc (sizeof (struct kv_tx_lock_elem));
+    new_elem->key = malloc (key_len);
+    memcpy (new_elem->key, key, key_len);
+    new_elem->key_len = key_len;
+    new_elem->next = NULL;
+    new_elem->prev = tx->lock_tail;
+
+    if (tx->lock_head == NULL) {    
+        tx->lock_head = new_elem;
+        tx->lock_tail = new_elem;
+    } else {
+        tx->lock_tail->next = new_elem;
+        tx->lock_tail = new_elem;
+    }
+    return 0;
+}
+
+int kv_tx_unlock_all (struct kv_lm *lm, struct kv_tx *tx)
+{
+    struct kv_tx_lock_elem *del_elem;
+
+    while (tx->lock_tail != NULL) {
+        del_elem = tx->lock_tail;
+        tx->lock_tail = tx->lock_tail->prev;
+        if (tx->lock_tail != NULL)
+            tx->lock_tail->next = NULL;  // todo: remove?
+        kv_lm_unlock (lm, del_elem->key, del_elem->key_len);
+        free (del_elem->key);
+        free (del_elem);
+    }
     return 0;
 }

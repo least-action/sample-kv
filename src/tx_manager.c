@@ -42,8 +42,9 @@ struct kv_tx* kv_txm_start_new_transaction ()
     return new_tx;
 }
 
-int kv_txm_end_transaction (struct kv_tx *tx)
+int kv_txm_end_transaction (struct kv_lm *lm, struct kv_tx *tx)
 {
+    kv_tx_unlock_all (lm, tx);
     kv_tx_destroy (tx);
 
     return 0;

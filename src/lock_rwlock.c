@@ -24,6 +24,7 @@ struct kv_rwl* kv_rwl_create ()
     return rwl;
 }
 
+
 int kv_rwl_destroy (struct kv_rwl *rwl)
 {
     pthread_mutex_destroy (&rwl->lock);

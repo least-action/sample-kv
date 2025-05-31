@@ -3,7 +3,7 @@
 
 struct kv_rwl;
 
-struct kv_rwl* kv_rwl_create ();
+struct kv_rwl* kv_rwl_create ();  // todo: remove
 int kv_rwl_destroy (struct kv_rwl *rwl);
 
 int kv_rwl_rlock (struct kv_rwl *rwl);
