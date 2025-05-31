@@ -45,7 +45,6 @@ int kv_lm_destroy (struct kv_lm *lm)
 int kv_lm_rlock (struct kv_lm *lm, char *key, size_t key_len)
 {
     size_t hash, idx;
-    printf("rlock\n");
 
     hash = djb2 (key, key_len);
     atomic_fetch_add (&lm->counter, 1);
@@ -62,7 +61,6 @@ int kv_lm_rlock (struct kv_lm *lm, char *key, size_t key_len)
 int kv_lm_wlock (struct kv_lm *lm, char *key, size_t key_len)
 {
     size_t hash, idx;
-    printf("wlock\n");
 
     hash = djb2 (key, key_len);
     atomic_fetch_add (&lm->counter, 1);
@@ -79,7 +77,6 @@ int kv_lm_wlock (struct kv_lm *lm, char *key, size_t key_len)
 int kv_lm_unlock (struct kv_lm *lm, char *key, size_t key_len)
 {
     size_t hash, idx;
-    printf("unlock\n");
 
     hash = djb2 (key, key_len);
     atomic_fetch_sub (&lm->counter, 1);  // todo: check position of this line

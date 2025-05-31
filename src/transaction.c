@@ -197,7 +197,6 @@ int kv_tx_add_lock (struct kv_tx *tx, char *key, size_t key_len, bool is_rlock)
 
 int kv_tx_unlock_all (struct kv_lm *lm, struct kv_tx *tx)
 {
-    printf("unlock all\n");
     struct kv_tx_lock_elem *del_elem;
 
     while (tx->lock_tail != NULL) {
