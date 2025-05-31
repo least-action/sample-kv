@@ -169,9 +169,9 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
 
         kv_lm_rlock (lm, key, key_len);
         {
+            kv_tx_add_lock (c_data->tx, key, key_len, true);
             v_data = kv_ht_get (ht, &kd);
         }
-        kv_lm_unlock (lm, key, key_len);
 
         free (key);
 
@@ -186,7 +186,8 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
             // commit: todo: release locks
             new_lsn_id = kv_recovery_commit_log (kv_tx_last_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
             kv_tx_set_last_lsn (c_data->tx, new_lsn_id);
-            kv_txm_end_transaction (c_data->tx);
+            kv_txm_end_transaction (lm, c_data->tx);
+            kv_lm_unlock (lm, key, key_len);
             c_data->tx = NULL;
         }
     }
@@ -215,6 +216,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
 
         kv_lm_wlock (lm, key, key_len);
         {
+            kv_tx_add_lock (c_data->tx, key, key_len, false);
             old_v_data = kv_ht_get (ht, k_data);
             // todo: bug: key data malloc free when updated
             if (old_v_data == NULL) {
@@ -225,9 +227,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
                 kv_tx_set_last_lsn (c_data->tx, new_lsn_id);
             }
             old_v_data = kv_ht_set (ht, k_data, v_data);
-
         }
-        kv_lm_unlock (lm, key, key_len);  // todo: why unlock here?
 
         if (old_v_data != NULL) {
             free (old_v_data->value);
@@ -238,7 +238,8 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         if (is_single_command) {
             new_lsn_id = kv_recovery_commit_log (kv_tx_last_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
             kv_tx_set_last_lsn (c_data->tx, new_lsn_id);
-            kv_txm_end_transaction (c_data->tx);
+            kv_txm_end_transaction (lm, c_data->tx);
+            kv_lm_unlock (lm, key, key_len);
             c_data->tx = NULL;
         }
     }
@@ -259,6 +260,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
 
         kv_lm_wlock (lm, key, key_len);
         {
+            kv_tx_add_lock (c_data->tx, key, key_len, false);
             old_v_data = kv_ht_get (ht, &kd);
             if (old_v_data != NULL) {
                 new_lsn_id = kv_recovery_update_log (kv_tx_last_lsn (c_data->tx), kv_tx_get_id (c_data->tx), key, key_len, old_v_data->value, old_v_data->val_len, NULL, 0);
@@ -268,7 +270,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
             else
                 old_kv = (struct kv_ht_kv) { NULL, NULL };
         }
-        kv_lm_unlock (lm, key, key_len);
+        
 
         free (key);
 
@@ -292,7 +294,8 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         if (is_single_command) {
             new_lsn_id = kv_recovery_commit_log (kv_tx_last_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
             kv_tx_set_last_lsn (c_data->tx, new_lsn_id);
-            kv_txm_end_transaction (c_data->tx);
+            kv_txm_end_transaction (lm, c_data->tx);
+            kv_lm_unlock (lm, key, key_len);
             c_data->tx = NULL;
         }
     }
@@ -302,7 +305,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         } else {
             new_lsn_id = kv_recovery_commit_log (kv_tx_last_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
             kv_tx_set_last_lsn (c_data->tx, new_lsn_id);
-            kv_txm_end_transaction (c_data->tx);
+            kv_txm_end_transaction (lm, c_data->tx);
             c_data->tx = NULL;
             strcpy (result, transaction_committed);
         }
@@ -314,7 +317,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
             new_lsn_id = kv_recovery_abort_log (kv_tx_last_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
             kv_tx_set_last_lsn (c_data->tx, new_lsn_id);
             kv_tx_rollback (c_data->tx, ht, lm);
-            kv_txm_end_transaction (c_data->tx);
+            kv_txm_end_transaction (lm, c_data->tx);
             c_data->tx = NULL;
             strcpy (result, transaction_aborted);
         }

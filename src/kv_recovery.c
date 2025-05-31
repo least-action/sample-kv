@@ -1,5 +1,6 @@
 #include "kv_recovery.h"
 #include "transaction.h"
+#include "utils.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -82,7 +83,7 @@ static int uint32_to_hex (uint32_t lsn_id, char* hex)
     filter = 0x0000000f;
     for (int i = 0; i < 8; ++i) {
         digit = (lsn_id & filter) >> (i * 4);
-        hex[7 - i] = digit + 48;
+        hex[7 - i] = get_hex (digit);
         filter <<= 4;
     }
 
@@ -95,7 +96,7 @@ static uint32_t hex_to_uint32 (char *hex)
 
     hex_val = 0;
     for (int i = 0; i < 8; ++i) {
-        hex_val += (hex[i] - 48) << (7-i);
+        hex_val += from_hex (hex[i]) << (7-i);
     }
 
     return hex_val;
@@ -109,7 +110,7 @@ static int size_t_to_2_digit_hex (size_t s, char *hex)
     filter = 0x0000000f;
     for (int i = 0; i < 2; ++i) {
         digit = (s & filter) >> (i * 4);
-        hex[1 - i] = digit + 48;
+        hex[1 - i] = get_hex (digit);
         filter <<= 4;
     }
 
@@ -122,7 +123,7 @@ static size_t from_2_digit_hex (char *hex)
 
     hex_val = 0;
     for (int i = 0; i < 2; ++i) {
-        hex_val += (hex[i] - 48) << (1-i);
+        hex_val += from_hex (hex[i]) << (1-i);
     }
 
     return hex_val;
@@ -138,7 +139,7 @@ int kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id)
         new_lsn = ++lsn;
         snprintf (
             line, KV_RECOVERY_MAX_LINE_LEN,
-            "%08x %08x T%08x %s\n",
+            "%08X %08X T%08X %s\n",
             new_lsn, prev_id, tx_id, BEGIN_TYPE
         );  // todo: perf: use more efficient (ex. memset)
         
@@ -162,7 +163,7 @@ int kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id)
         new_lsn = ++lsn;
         snprintf (
             line, KV_RECOVERY_MAX_LINE_LEN,
-            "%08x %08x T%08x %s\n",
+            "%08X %08X T%08X %s\n",
             new_lsn, prev_id, tx_id, COMMIT_TYPE
         );  // todo: perf: use more efficient (ex. memset)
         
@@ -285,7 +286,7 @@ int kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id)
         new_lsn = ++lsn;
         snprintf (
             line, KV_RECOVERY_MAX_LINE_LEN,
-            "%08x %08x T%08x %s\n",
+            "%08X %08X T%08X %s\n",
             new_lsn, prev_id, tx_id, ABORT_TYPE
         );  // todo: perf: use more efficient (ex. memset)
         
@@ -314,7 +315,7 @@ int kv_recovery_check_log (lsn_id prev_id, uint32_t tx_id)
         new_lsn = ++lsn;
         snprintf (
             line, KV_RECOVERY_MAX_LINE_LEN,
-            "%08x %08x T%08x %s\n",
+            "%08X %08X T%08X %s\n",
             new_lsn, prev_id, tx_id, CHECK_TYPE
         );  // todo: perf: use more efficient (ex. memset)
         
@@ -338,7 +339,7 @@ int kv_recovery_end_log (lsn_id prev_id, uint32_t tx_id)
         new_lsn = ++lsn;
         snprintf (
             line, KV_RECOVERY_MAX_LINE_LEN,
-            "%08x %08x T%08x %s\n",
+            "%08X %08X T%08X %s\n",
             new_lsn, prev_id, tx_id, END_TYPE
         );  // todo: perf: use more efficient (ex. memset)
         

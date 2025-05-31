@@ -13,4 +13,7 @@ ssize_t read_with_error (int fd, void *buf, size_t count);
 
 size_t djb2(const char* str, size_t str_size);
 
+char get_hex (uint32_t i);
+uint32_t from_hex (char hex);
+
 #endif
