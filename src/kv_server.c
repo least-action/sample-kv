@@ -7,6 +7,7 @@
 #include "shutdown.h"
 #include "lock_manager.h"
 #include "kv_recovery.h"
+#include "kv_recovery_snapshot.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,6 +56,10 @@ int kv_run_server (uint16_t port)
     struct kv_handle_server_data *data;
     struct kv_lm *lm;
 
+    pthread_t snapshot_thread;
+    struct kv_rec_snapshot_arg snapshot_arg;
+    int snapshot_thread_ret;
+
     ht = kv_ht_create (2, str_hash_func, str_cmp_func);
     
     kv_recovery_recover ();  // todo: error handling
@@ -66,6 +71,15 @@ int kv_run_server (uint16_t port)
 
     pthread_mutex_init (&server_terminate_lock, NULL);
     pthread_cond_init (&server_terminate_cond, NULL);
+
+    snapshot_arg.terminate_cond = &server_terminate_cond;
+    snapshot_arg.terminate_lock = &server_terminate_lock;
+    snapshot_thread_ret = pthread_create (&snapshot_thread, NULL, (void *) kv_recovery_snapshot_handler, &snapshot_arg);
+    if (snapshot_thread_ret != 0) {
+        errno = snapshot_thread_ret;
+        perror ("pthread (snapshot) create error");
+
+    }
 
     server_fd = socket (AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {

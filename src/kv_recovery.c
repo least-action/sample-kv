@@ -305,26 +305,62 @@ int kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id, uint32_t undo_next_lsn,
     return data_change_log (prev_id, tx_id, key, key_len, cur_val, cur_len, prev_val, prev_len, true);
 }
 
-int kv_recovery_check_log (lsn_id prev_id, uint32_t tx_id)
+int kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
-    
-    pthread_mutex_lock (&lsn_lock);
-    {
-        new_lsn = ++lsn;
-        snprintf (
-            line, KV_RECOVERY_MAX_LINE_LEN,
-            "%08X %08X T%08X %s\n",
-            new_lsn, prev_id, tx_id, CHECK_TYPE
-        );  // todo: perf: use more efficient (ex. memset)
+    char *tx_id_line;
+    int tx_id_line_len;
+    char hex[8];
+
+    if (list_size == 0) {
+        {
+            new_lsn = ++lsn;
+            snprintf (
+                line, KV_RECOVERY_MAX_LINE_LEN,
+                "%08X 00000000 T00000000 %s\n",
+                new_lsn, CHECK_TYPE
+            );  // todo: perf: use more efficient (ex. memset)
+
+            if (fputs (line, recovery_file) == EOF) {
+                // todo: error handling
+            }
+            fflush (recovery_file);
+        }    
+    } else {
+        tx_id_line_len = 10 * list_size - 1;
+        tx_id_line = (char *) malloc (tx_id_line_len);
         
-        if (fputs (line, recovery_file) == EOF) {
-            // todo: error handling
+        // pthread_mutex_lock (&lsn_lock);
+        // snapshot 스레드에서 이미 락을 획득
+        {
+            new_lsn = ++lsn;
+            for (int i = 0; i < list_size; ++i) {
+                uint32_to_hex (tx_id_list[i], hex);
+                memset (tx_id_line + (i * 10), 'T', 1);
+                memcpy (tx_id_line + (i * 10) + 1, hex, 8);
+                if (i < list_size - 1)
+                    memset (tx_id_line + (i * 10) + 2, ' ', 1);
+            }
+            snprintf (
+                line, KV_RECOVERY_MAX_LINE_LEN,
+                "%08X 00000000 T00000000 %s",
+                new_lsn, CHECK_TYPE
+            );  // todo: perf: use more efficient (ex. memset)
+            memset (line + 35, ' ', 1);
+            memcpy (line + 36, tx_id_line, tx_id_line_len);
+            memset (line + 36 + tx_id_line_len, '\n', 1);
+            memset (line + 37 + tx_id_line_len, '\0', 1);
+            
+            if (fputs (line, recovery_file) == EOF) {
+                // todo: error handling
+            }
+            fflush (recovery_file);
         }
-        fflush (recovery_file);
+        // pthread_mutex_unlock (&lsn_lock);
+        free (tx_id_line);
     }
-    pthread_mutex_unlock (&lsn_lock);
+    
 
     return new_lsn;
 }

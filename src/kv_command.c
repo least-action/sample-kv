@@ -183,7 +183,6 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         }
 
         if (is_single_command) {
-            // commit: todo: release locks
             new_lsn_id = kv_recovery_commit_log (kv_tx_last_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
             kv_tx_set_last_lsn (c_data->tx, new_lsn_id);
             kv_txm_end_transaction (lm, c_data->tx);
