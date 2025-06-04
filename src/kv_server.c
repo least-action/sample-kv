@@ -74,6 +74,7 @@ int kv_run_server (uint16_t port)
 
     snapshot_arg.terminate_cond = &server_terminate_cond;
     snapshot_arg.terminate_lock = &server_terminate_lock;
+    snapshot_arg.ht = ht;
     snapshot_thread_ret = pthread_create (&snapshot_thread, NULL, (void *) kv_recovery_snapshot_handler, &snapshot_arg);
     if (snapshot_thread_ret != 0) {
         errno = snapshot_thread_ret;

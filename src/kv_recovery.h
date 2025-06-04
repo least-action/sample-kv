@@ -70,6 +70,9 @@ struct kv_recovery_log_line {
     size_t new_len;
 };
 
+int kv_recovery_lock ();
+int kv_recovery_unlock ();
+
 int kv_recovery_recover ();
 
 int kv_recovery_init ();

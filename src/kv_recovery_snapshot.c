@@ -2,6 +2,7 @@
 #include "shutdown.h"
 #include "kv_recovery.h"
 #include "tx_manager.h"
+#include "kv_hash.h"
 
 #include <stdlib.h>
 #include <time.h>
@@ -15,6 +16,7 @@ void* kv_recovery_snapshot_handler (void *data)
     struct kv_rec_snapshot_arg *arg = (struct kv_rec_snapshot_arg *) data;
     pthread_cond_t *cond = arg->terminate_cond;
     pthread_mutex_t *lock = arg->terminate_lock;
+    struct kv_ht *ht = arg->ht;
     int res;
     struct timespec ts;
     uint32_t *tx_id_list;
@@ -37,11 +39,15 @@ void* kv_recovery_snapshot_handler (void *data)
         // begin, commit, abort 등과 같이 transaction 이 시작되고 종료되는 작업을 하기 전에 log 를 먼저 작성해야함
         // begin 은 로그를 먼저 찍을 수 없음. tx 가 정해져야 찍을 수 있어서.
         tx_id_list = NULL;
-        kv_txm_lock ();
+        kv_txm_lock ();  // tx 목록을 뽑기 위해 새로 생성되거나 종료되지 못하게
+        kv_recovery_lock ();
+        kv_ht_lock (ht);
         {
             tx_id_list_size = kv_txm_ongoing_transaction_ids (&tx_id_list);
             kv_recovery_check_log (tx_id_list, tx_id_list_size);
         }
+        kv_ht_unlock (ht);
+        kv_recovery_unlock ();
         kv_txm_unlock ();
 
         if (tx_id_list != NULL)

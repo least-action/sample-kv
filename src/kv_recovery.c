@@ -26,6 +26,17 @@ static const char CLR_TYPE[LOG_TYPE_LEN+1]        = "CLR____";
 static const char CHECK_TYPE[LOG_TYPE_LEN+1]      = "CHECK__";
 static const char END_TYPE[LOG_TYPE_LEN+1]        = "END____";
 
+int kv_recovery_lock ()
+{
+    pthread_mutex_lock (&lsn_lock);
+    return 0;
+}
+
+int kv_recovery_unlock ()
+{
+    pthread_mutex_unlock (&lsn_lock);
+    return 0;
+}
 
 int kv_recovery_recover ()
 {
@@ -314,19 +325,16 @@ int kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size)
     char hex[8];
 
     if (list_size == 0) {
-        {
-            new_lsn = ++lsn;
-            snprintf (
-                line, KV_RECOVERY_MAX_LINE_LEN,
-                "%08X 00000000 T00000000 %s\n",
-                new_lsn, CHECK_TYPE
-            );  // todo: perf: use more efficient (ex. memset)
-
-            if (fputs (line, recovery_file) == EOF) {
-                // todo: error handling
-            }
-            fflush (recovery_file);
-        }    
+        new_lsn = ++lsn;
+        snprintf (
+            line, KV_RECOVERY_MAX_LINE_LEN,
+            "%08X 00000000 T00000000 %s\n",
+            new_lsn, CHECK_TYPE
+        );  // todo: perf: use more efficient (ex. memset)
+        if (fputs (line, recovery_file) == EOF) {
+            // todo: error handling
+        }
+        fflush (recovery_file);
     } else {
         tx_id_line_len = 10 * list_size - 1;
         tx_id_line = (char *) malloc (tx_id_line_len);
