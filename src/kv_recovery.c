@@ -107,7 +107,7 @@ static uint32_t hex_to_uint32 (char *hex)
 
     hex_val = 0;
     for (int i = 0; i < 8; ++i) {
-        hex_val += from_hex (hex[i]) << (7-i);
+        hex_val += from_hex (hex[i]) << ((7-i) * 4);
     }
 
     return hex_val;
