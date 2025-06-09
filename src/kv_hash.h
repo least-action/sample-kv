@@ -23,4 +23,7 @@ void* kv_ht_set (struct kv_ht *ht, void *key, void *value);
 /* 0: key not found, 1: deleted */
 struct kv_ht_kv kv_ht_del (struct kv_ht *ht, void *key);
 
+typedef void (*ht_foreach_func_t) (const struct kv_ht_kv kv, void *param);
+void kv_ht_foreach (struct kv_ht *ht, ht_foreach_func_t foreach_func, void *param);
+
 #endif

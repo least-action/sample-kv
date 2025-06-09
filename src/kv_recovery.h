@@ -78,13 +78,13 @@ int kv_recovery_recover ();
 int kv_recovery_init ();
 int kv_recovery_destroy ();
 
-int kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id);
-int kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id);
-int kv_recovery_update_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len);
-int kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id);
-int kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id, uint32_t undo_next_lsn, char *key, size_t key_len, char *cur_val, size_t cur_len, char *prev_val, size_t prev_len);
-int kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size);
-int kv_recovery_end_log (lsn_id prev_id, uint32_t tx_id);
+uint32_t kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id);
+uint32_t kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id);
+uint32_t kv_recovery_update_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len);
+uint32_t kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id);
+uint32_t kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id, uint32_t undo_next_lsn, char *key, size_t key_len, char *cur_val, size_t cur_len, char *prev_val, size_t prev_len);
+uint32_t kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size);
+uint32_t kv_recovery_end_log (lsn_id prev_id, uint32_t tx_id);
 
 struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn);
 int kv_recovery_destroy_log_line (struct kv_recovery_log_line *log);

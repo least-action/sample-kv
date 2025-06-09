@@ -217,3 +217,19 @@ struct kv_ht_kv kv_ht_del (struct kv_ht *ht, void *key)
     
     return old_data;
 }
+
+void kv_ht_foreach (struct kv_ht *ht, ht_foreach_func_t foreach_func, void *param)
+{
+    struct kv_ht_elem *elem;
+    struct kv_ht_kv kv;
+
+    for (size_t pos = 0; pos < ht->size; ++pos) {
+        elem = ht->table[pos];
+        while (elem != NULL) {
+            kv.key = elem->key;
+            kv.value = elem->value;
+            foreach_func (kv, param);
+            elem = elem->next;
+        }
+    }
+}

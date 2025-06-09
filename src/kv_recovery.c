@@ -140,7 +140,7 @@ static size_t from_2_digit_hex (char *hex)
     return hex_val;
 }
 
-int kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id)
+uint32_t kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
@@ -164,7 +164,7 @@ int kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id)
     return new_lsn;
 }
 
-int kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id)
+uint32_t kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
@@ -188,7 +188,7 @@ int kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id)
     return new_lsn;
 }
 
-static int data_change_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len, bool is_clr)
+static uint32_t data_change_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len, bool is_clr)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
@@ -282,12 +282,12 @@ static int data_change_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t ke
     return new_lsn;
 }
 
-int kv_recovery_update_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len)
+uint32_t kv_recovery_update_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len)
 {
     return data_change_log (prev_id, tx_id, key, key_len, old_val, old_len, new_val, new_len, false);
 }
 
-int kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id)
+uint32_t kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
@@ -311,12 +311,12 @@ int kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id)
     return new_lsn;
 }
 
-int kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id, uint32_t undo_next_lsn, char *key, size_t key_len, char *cur_val, size_t cur_len, char *prev_val, size_t prev_len)
+uint32_t kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id, uint32_t undo_next_lsn, char *key, size_t key_len, char *cur_val, size_t cur_len, char *prev_val, size_t prev_len)
 {
     return data_change_log (prev_id, tx_id, key, key_len, cur_val, cur_len, prev_val, prev_len, true);
 }
 
-int kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size)
+uint32_t kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
@@ -373,7 +373,7 @@ int kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size)
     return new_lsn;
 }
 
-int kv_recovery_end_log (lsn_id prev_id, uint32_t tx_id)
+uint32_t kv_recovery_end_log (lsn_id prev_id, uint32_t tx_id)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
