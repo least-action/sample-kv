@@ -37,7 +37,6 @@ void* kv_recovery_snapshot_handler (void *data)
     int child_status;
     uint32_t check_lsn;
     FILE *snapshot_file;
-    time_t epoch_time;
     char snapshot_file_name[100];
     char line_buffer[128];
 
@@ -95,11 +94,10 @@ void* kv_recovery_snapshot_handler (void *data)
     // write file
     // close file
     // update recent file
-    epoch_time = time (NULL);
     snprintf (
         snapshot_file_name, sizeof (snapshot_file_name),
-        "%s/%s_%ld.%s",
-        SNAPSHOT_DIR_NAME, SNAPSHOT_FILE_PREFIX, epoch_time, SNAPSHOT_FILE_EXT
+        "%s/%s_%08X.%s",
+        SNAPSHOT_DIR_NAME, SNAPSHOT_FILE_PREFIX, check_lsn, SNAPSHOT_FILE_EXT
     );
 
     if (mkdir (SNAPSHOT_DIR_NAME, 0755) == -1) {
@@ -108,8 +106,8 @@ void* kv_recovery_snapshot_handler (void *data)
         }
     }
     snapshot_file = fopen (snapshot_file_name, "w+");
-    snprintf (line_buffer, sizeof (line_buffer), "%08X\n", check_lsn);
-    fputs (line_buffer, snapshot_file);
+    // snprintf (line_buffer, sizeof (line_buffer), "%08X\n", check_lsn);
+    // fputs (line_buffer, snapshot_file);
     fclose (snapshot_file);
     exit (0);
 }
