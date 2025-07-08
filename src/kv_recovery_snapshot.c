@@ -3,6 +3,7 @@
 #include "kv_recovery.h"
 #include "tx_manager.h"
 #include "kv_hash.h"
+#include "kv_command.h"
 
 #include <stdlib.h>
 #include <time.h>
@@ -11,6 +12,7 @@
 #include <wait.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <string.h>
 
 #define SNAPSHOT_DIR_NAME "snapshots"
 #define SNAPSHOT_FILE_PREFIX "snapshot"
@@ -18,10 +20,31 @@
 
 static const time_t DELAY = 5;
 
-// static kv_hashtable_foreach ()
-// {
-//     return 
-// }
+static void kv_hashtable_foreach (const struct kv_ht_kv kv, void *param)
+{
+    FILE *snapshot_file;
+    snapshot_file = (FILE *) param;
+    char line_buff[128];
+    struct key_data *kd;
+    struct val_data *vd;
+    int cur;
+    
+    kd = kv.key;
+    vd = kv.value;
+    cur = 0;
+
+    memcpy (line_buff + cur, kd->key, kd->key_len);
+    cur += kd->key_len;
+    memcpy (line_buff + cur, " " , 1);
+    cur += 1;
+    memcpy (line_buff + cur, vd->value, vd->val_len);
+    cur += vd->val_len;
+    memcpy (line_buff + cur, "\n\0", 2);
+
+    fputs (line_buff, snapshot_file);
+
+    return;
+}
 
 void* kv_recovery_snapshot_handler (void *data)
 {
@@ -38,7 +61,6 @@ void* kv_recovery_snapshot_handler (void *data)
     uint32_t check_lsn;
     FILE *snapshot_file;
     char snapshot_file_name[100];
-    char line_buffer[128];
 
     pid = 0;
     pthread_mutex_lock (lock);
@@ -89,11 +111,7 @@ void* kv_recovery_snapshot_handler (void *data)
     }
 
     // snapshot process
-
-    // create file
-    // write file
-    // close file
-    // update recent file
+    // 1. create file
     snprintf (
         snapshot_file_name, sizeof (snapshot_file_name),
         "%s/%s_%08X.%s",
@@ -106,8 +124,12 @@ void* kv_recovery_snapshot_handler (void *data)
         }
     }
     snapshot_file = fopen (snapshot_file_name, "w+");
-    // snprintf (line_buffer, sizeof (line_buffer), "%08X\n", check_lsn);
-    // fputs (line_buffer, snapshot_file);
+    
+    // 2. write file
+    kv_ht_foreach (ht, kv_hashtable_foreach, snapshot_file);
+
+    // 3. close file
     fclose (snapshot_file);
+
     exit (0);
 }
