@@ -17,7 +17,6 @@
 #define SNAPSHOT_DIR_NAME "snapshots"
 #define SNAPSHOT_FILE_PREFIX "snapshot"
 #define SNAPSHOT_FILE_EXT "kvdb"
-#define LAST_SNAPSHOT_LSN_FILE "last_lsn.kvdb"
 
 static const time_t DELAY = 5;
 

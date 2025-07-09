@@ -6,6 +6,7 @@
 #include <pthread.h>
 
 #define SNAPSHOT_FILE_NAME "snapshot.kvdb"
+#define LAST_SNAPSHOT_LSN_FILE "last_lsn.kvdb"
 
 struct kv_rec_snapshot_arg {
     pthread_cond_t *terminate_cond;

@@ -1,6 +1,7 @@
 #include "kv_recovery.h"
 #include "transaction.h"
 #include "utils.h"
+#include "kv_recovery_snapshot.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -25,66 +26,6 @@ static const char ABORT_TYPE[LOG_TYPE_LEN+1]      = "ABORT__";
 static const char CLR_TYPE[LOG_TYPE_LEN+1]        = "CLR____";
 static const char CHECK_TYPE[LOG_TYPE_LEN+1]      = "CHECK__";
 static const char END_TYPE[LOG_TYPE_LEN+1]        = "END____";
-
-int kv_recovery_lock ()
-{
-    pthread_mutex_lock (&lsn_lock);
-    return 0;
-}
-
-int kv_recovery_unlock ()
-{
-    pthread_mutex_unlock (&lsn_lock);
-    return 0;
-}
-
-int kv_recovery_recover ()
-{
-    FILE *rec_file;
-    // fpos_t pos;
-
-    rec_file = fopen (RECOVERY_FILE_NAME, "w+");
-    if (!rec_file) {
-        // todo: error handling
-    }
-
-    // build hash table data from dump file
-
-    // analysis
-        // find check point
-        // add unterminated tx list
-
-    // redo
-    
-
-    // undo
-
-    fclose (rec_file);
-
-    // todo
-
-    return 0;
-}
-
-int kv_recovery_init ()
-{
-    recovery_file = fopen (RECOVERY_FILE_NAME, "a");
-    if (!recovery_file) {
-        // todo: error handling
-    }
-
-    lsn = 0;  // todo: get from file
-    pthread_mutex_init (&lsn_lock, NULL);
-
-    return 0;
-}
-
-int kv_recovery_destroy ()
-{
-    pthread_mutex_destroy (&lsn_lock);
-    fclose (recovery_file);
-    return 0;
-}
 
 static int uint32_to_hex (uint32_t lsn_id, char* hex)
 {
@@ -111,6 +52,77 @@ static uint32_t hex_to_uint32 (char *hex)
     }
 
     return hex_val;
+}
+
+int kv_recovery_lock ()
+{
+    pthread_mutex_lock (&lsn_lock);
+    return 0;
+}
+
+int kv_recovery_unlock ()
+{
+    pthread_mutex_unlock (&lsn_lock);
+    return 0;
+}
+
+int kv_recovery_recover ()
+{
+    FILE *rec_file;
+    FILE *last_lsn_file;
+    uint32_t last_checked_lsn;
+    char last_checked_lsn_hex[8];
+    // fpos_t pos;
+
+    last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "r");
+    if (fread (last_checked_lsn_hex, 1, 8, last_lsn_file) != 8) {
+        // todo: error handling
+    }
+    last_checked_lsn = hex_to_uint32 (last_checked_lsn_hex);
+    fclose (last_lsn_file);
+    printf ("%u\n", last_checked_lsn);
+
+    rec_file = fopen (RECOVERY_FILE_NAME, "w+");
+    if (!rec_file) {
+        // todo: error handling
+    }
+
+    // build hash table data from dump file
+
+
+    // analysis
+        // find check point
+        // add unterminated tx list
+
+    // redo
+    
+
+    // undo
+
+    fclose (rec_file);
+
+    lsn = 0;  // todo: get from file
+
+    return 0;
+}
+
+int kv_recovery_init ()
+{
+    recovery_file = fopen (RECOVERY_FILE_NAME, "a");
+    if (!recovery_file) {
+        // todo: error handling
+    }
+
+    pthread_mutex_init (&lsn_lock, NULL);
+
+    return 0;
+}
+
+int kv_recovery_destroy ()
+{
+    pthread_mutex_destroy (&lsn_lock);
+    fclose (recovery_file);
+    return 0;
 }
 
 static int size_t_to_2_digit_hex (size_t s, char *hex)
