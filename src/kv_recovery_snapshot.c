@@ -17,6 +17,7 @@
 #define SNAPSHOT_DIR_NAME "snapshots"
 #define SNAPSHOT_FILE_PREFIX "snapshot"
 #define SNAPSHOT_FILE_EXT "kvdb"
+#define LAST_SNAPSHOT_LSN_FILE "last_lsn.kvdb"
 
 static const time_t DELAY = 5;
 
@@ -60,7 +61,9 @@ void* kv_recovery_snapshot_handler (void *data)
     int child_status;
     uint32_t check_lsn;
     FILE *snapshot_file;
+    FILE *last_lsn_file;
     char snapshot_file_name[100];
+    char last_lsn_hex[16];
 
     pid = 0;
     pthread_mutex_lock (lock);
@@ -130,6 +133,11 @@ void* kv_recovery_snapshot_handler (void *data)
 
     // 3. close file
     fclose (snapshot_file);
+
+    last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "w+");
+    snprintf (last_lsn_hex, 9, "%08X", check_lsn);
+    fputs (last_lsn_hex, last_lsn_file);
+    fclose (last_lsn_file);
 
     exit (0);
 }
