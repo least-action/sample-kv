@@ -68,6 +68,8 @@ struct kv_recovery_log_line {
     size_t old_len;
     char *new_val;
     size_t new_len;
+    size_t tx_count;
+    uint32_t *tx_list;
 };
 
 int kv_recovery_lock ();

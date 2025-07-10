@@ -72,7 +72,7 @@ int kv_recovery_recover ()
     FILE *last_lsn_file;
     uint32_t last_checked_lsn;
     char last_checked_lsn_hex[8];
-    // fpos_t pos;
+    struct kv_recovery_log_line* check_log_line;
 
     last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "r");
     if (fread (last_checked_lsn_hex, 1, 8, last_lsn_file) != 8) {
@@ -80,7 +80,6 @@ int kv_recovery_recover ()
     }
     last_checked_lsn = hex_to_uint32 (last_checked_lsn_hex);
     fclose (last_lsn_file);
-    printf ("%u\n", last_checked_lsn);
 
     rec_file = fopen (RECOVERY_FILE_NAME, "w+");
     if (!rec_file) {
@@ -92,6 +91,9 @@ int kv_recovery_recover ()
 
     // analysis
         // find check point
+    check_log_line = kv_recovery_get_log (last_checked_lsn);
+    check_log_line;
+    kv_recovery_destroy_log_line (check_log_line);
         // add unterminated tx list
 
     // redo
@@ -335,12 +337,13 @@ uint32_t kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size)
     char *tx_id_line;
     int tx_id_line_len;
     char hex[8];
+    char *size_t_hex;
 
     if (list_size == 0) {
         new_lsn = ++lsn;
         snprintf (
             line, KV_RECOVERY_MAX_LINE_LEN,
-            "%08X 00000000 T00000000 %s\n",
+            "%08X 00000000 T00000000 %s 00\n",
             new_lsn, CHECK_TYPE
         );  // todo: perf: use more efficient (ex. memset)
         if (fputs (line, recovery_file) == EOF) {
@@ -348,17 +351,21 @@ uint32_t kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size)
         }
         fflush (recovery_file);
     } else {
-        tx_id_line_len = 10 * list_size - 1;
+        tx_id_line_len = 3 + 10 * list_size - 1;
         tx_id_line = (char *) malloc (tx_id_line_len);
         
-        // pthread_mutex_lock (&lsn_lock);
-        // snapshot 스레드에서 이미 락을 획득
+        // pthread_mutex_lock (&lsn_lock);  > snapshot 스레드에서 이미 락을 획득
         {
             new_lsn = ++lsn;
+            size_t_hex = (char *) malloc (2);
+            size_t_to_2_digit_hex (list_size, size_t_hex);
+            memcpy (tx_id_line, size_t_hex, 2);
+            memset (tx_id_line + 2, ' ', 1);
+
             for (int i = 0; i < list_size; ++i) {
                 uint32_to_hex (tx_id_list[i], hex);
-                memset (tx_id_line + (i * 10), 'T', 1);
-                memcpy (tx_id_line + (i * 10) + 1, hex, 8);
+                memset (tx_id_line + 3 + (i * 10), 'T', 1);
+                memcpy (tx_id_line + 3 + (i * 10) + 1, hex, 8);
                 if (i < list_size - 1)
                     memset (tx_id_line + (i * 10) + 2, ' ', 1);
             }
@@ -428,6 +435,8 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     size_t old_len;
     char *new_val;
     size_t new_len;
+    size_t tx_count;
+    uint32_t *tx_list;
 
     size_t pos;
     
@@ -495,6 +504,17 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
         memcpy (old_val, line + pos, old_len);
         pos += old_len + 1;
         memcpy (new_val, line + pos, new_len);
+        tx_count = 0;
+        tx_list = NULL;
+    } else if (log_type == KV_REC_CHECK) {
+        key = NULL;
+        key_len = 0;
+        old_val = NULL;
+        old_len = 0;
+        new_val = NULL;
+        new_len = 0;
+        // tx_count = ;
+        // tx_list = line + pos;
     } else {
         key = NULL;
         key_len = 0;
@@ -502,6 +522,8 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
         old_len = 0;
         new_val = NULL;
         new_len = 0;
+        tx_count = 0;
+        tx_list = NULL;
     }
     
     log_line = (struct kv_recovery_log_line *) malloc (sizeof (struct kv_recovery_log_line));
@@ -515,6 +537,8 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     log_line->old_len = old_len;
     log_line->new_val = new_val;
     log_line->new_len = new_len;
+    log_line->tx_count = tx_count;
+    log_line->tx_list = tx_list;
 
     fclose (recovery_file);
 
@@ -526,9 +550,11 @@ int kv_recovery_destroy_log_line (struct kv_recovery_log_line *log)
     if (log == NULL)
         return 0;
     
+    // todo: null check?
     free (log->key);
     free (log->old_val);
     free (log->new_val);
+    free (log->tx_list);
     free (log);
     
     return 0;
