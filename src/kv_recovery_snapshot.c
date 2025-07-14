@@ -54,7 +54,8 @@ void* kv_recovery_snapshot_handler (void *data)
     struct kv_ht *ht = arg->ht;
     int res;
     struct timespec ts;
-    uint32_t *tx_id_list;
+    // uint32_t *tx_id_list;
+    struct kv_ongoing_tx *tx_list;
     size_t tx_id_list_size;
     pid_t pid;
     int child_status;
@@ -81,13 +82,13 @@ void* kv_recovery_snapshot_handler (void *data)
         // lock > 이 lock 이 걸리면 해제될 때 까지 다른 transaction 은 시작되면 안됨. 종료도 되어선 안됨.
         // begin, commit, abort 등과 같이 transaction 이 시작되고 종료되는 작업을 하기 전에 log 를 먼저 작성해야함
         // begin 은 로그를 먼저 찍을 수 없음. tx 가 정해져야 찍을 수 있어서.
-        tx_id_list = NULL;
+        tx_list = NULL;
         kv_txm_lock ();  // tx 목록을 뽑기 위해 새로 생성되거나 종료되지 못하게
         kv_recovery_lock ();
         kv_ht_lock (ht);
         {
-            tx_id_list_size = kv_txm_ongoing_transaction_ids (&tx_id_list);
-            check_lsn = kv_recovery_check_log (tx_id_list, tx_id_list_size);
+            tx_id_list_size = kv_txm_ongoing_transaction_ids (&tx_list);
+            check_lsn = kv_recovery_check_log (tx_list, tx_id_list_size);
 
             pid = fork ();
             if (pid != 0) {  // parent
@@ -100,8 +101,8 @@ void* kv_recovery_snapshot_handler (void *data)
         kv_recovery_unlock ();
         kv_txm_unlock ();
         
-        if (tx_id_list != NULL)
-            free (tx_id_list);
+        if (tx_list != NULL)
+            free (tx_list);
         
         wait (&child_status);  // todo: handling
     }
@@ -134,7 +135,7 @@ void* kv_recovery_snapshot_handler (void *data)
     fclose (snapshot_file);
 
     last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "w+");
-    snprintf (last_lsn_hex, 9, "%08X", check_lsn);
+    snprintf (last_lsn_hex, 10, "%08X\n", check_lsn);
     fputs (last_lsn_hex, last_lsn_file);
     fclose (last_lsn_file);
 

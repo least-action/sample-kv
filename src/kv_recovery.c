@@ -73,33 +73,46 @@ int kv_recovery_recover ()
     uint32_t last_checked_lsn;
     char last_checked_lsn_hex[8];
     struct kv_recovery_log_line* check_log_line;
+    uint32_t tx_id;
+    uint32_t last_lsn;
 
     last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "r");
-    if (fread (last_checked_lsn_hex, 1, 8, last_lsn_file) != 8) {
-        // todo: error handling
+    if (last_lsn_file == NULL) {
+        last_checked_lsn = -1;
+    } else if (fread (last_checked_lsn_hex, 1, 8, last_lsn_file) != 8) {
+        last_checked_lsn = -1;
+        fclose (last_lsn_file);
+    } else {
+        last_checked_lsn = hex_to_uint32 (last_checked_lsn_hex);    
+        fclose (last_lsn_file);
     }
-    last_checked_lsn = hex_to_uint32 (last_checked_lsn_hex);
-    fclose (last_lsn_file);
 
     rec_file = fopen (RECOVERY_FILE_NAME, "w+");
     if (!rec_file) {
         // todo: error handling
     }
 
-    // build hash table data from dump file
+    // revert non terminated tx
+    if (last_checked_lsn == -1) {
+    } else {
+        check_log_line = kv_recovery_get_log (last_checked_lsn);
+        if (check_log_line == NULL) {
 
-
-    // analysis
-        // find check point
-    check_log_line = kv_recovery_get_log (last_checked_lsn);
-    check_log_line;
-    kv_recovery_destroy_log_line (check_log_line);
-        // add unterminated tx list
-
-    // redo
-    
-
-    // undo
+        } else if (check_log_line->tx_list != NULL) {
+            for (int i = 0; i < check_log_line->tx_count; i += 2) {
+                tx_id = check_log_line->tx_list[i];
+                last_lsn = check_log_line->tx_list[i + 1];
+                printf("(T%u, %u)\n", tx_id, last_lsn);
+                // find last tx lsn
+            
+                // for - clr & and
+            }
+            kv_recovery_destroy_log_line (check_log_line);
+        } else {
+            kv_recovery_destroy_log_line (check_log_line);
+        }
+    }
+    // todo: build hash table data from dump file + redo
 
     fclose (rec_file);
 
@@ -330,14 +343,15 @@ uint32_t kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id, uint32_t undo_next
     return data_change_log (prev_id, tx_id, key, key_len, cur_val, cur_len, prev_val, prev_len, true);
 }
 
-uint32_t kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size)
+uint32_t kv_recovery_check_log (struct kv_ongoing_tx *tx_list, size_t list_size)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
     char *tx_id_line;
     int tx_id_line_len;
-    char hex[8];
-    char *size_t_hex;
+    char tx_id_hex[8];
+    char lsn_hex[8];
+    char size_t_hex[2];
 
     if (list_size == 0) {
         new_lsn = ++lsn;
@@ -351,23 +365,26 @@ uint32_t kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size)
         }
         fflush (recovery_file);
     } else {
-        tx_id_line_len = 3 + 10 * list_size - 1;
+        tx_id_line_len = 3 + 19 * list_size - 1;
         tx_id_line = (char *) malloc (tx_id_line_len);
         
         // pthread_mutex_lock (&lsn_lock);  > snapshot 스레드에서 이미 락을 획득
         {
             new_lsn = ++lsn;
-            size_t_hex = (char *) malloc (2);
             size_t_to_2_digit_hex (list_size, size_t_hex);
             memcpy (tx_id_line, size_t_hex, 2);
             memset (tx_id_line + 2, ' ', 1);
 
             for (int i = 0; i < list_size; ++i) {
-                uint32_to_hex (tx_id_list[i], hex);
-                memset (tx_id_line + 3 + (i * 10), 'T', 1);
-                memcpy (tx_id_line + 3 + (i * 10) + 1, hex, 8);
+                // todo
+                uint32_to_hex (tx_list[i].tx_id, tx_id_hex);
+                uint32_to_hex (tx_list[i].last_lsn, lsn_hex);
+                memset (tx_id_line + 3 + (i * 19), 'T', 1);
+                memcpy (tx_id_line + 3 + (i * 19) + 1, tx_id_hex, 8);
+                memset (tx_id_line + 3 + (i * 19) + 9, ' ', 1);
+                memcpy (tx_id_line + 3 + (i * 19) + 10, lsn_hex, 8);
                 if (i < list_size - 1)
-                    memset (tx_id_line + (i * 10) + 2, ' ', 1);
+                    memset (tx_id_line + (i * 19) + 21, ' ', 1);
             }
             snprintf (
                 line, KV_RECOVERY_MAX_LINE_LEN,
@@ -442,7 +459,7 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     
     recovery_file = fopen (RECOVERY_FILE_NAME, "r");  // todo: perf: reuse file object
     
-    line_lsn = -1;
+    line_lsn = 0;
     while ((fgets (line, KV_RECOVERY_MAX_LINE_LEN, recovery_file)) != NULL) {  // todo: perf
         memcpy (lsn_hex, line, 8);
         line_lsn = hex_to_uint32 (lsn_hex);
@@ -513,8 +530,15 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
         old_len = 0;
         new_val = NULL;
         new_len = 0;
-        // tx_count = ;
-        // tx_list = line + pos;
+
+        tx_count = from_2_digit_hex (line + pos);
+        pos += 3;
+        tx_list = (uint32_t *) malloc (tx_count * sizeof (uint32_t) * 2);
+        for (int i = 0; i < tx_count; i += 2) {
+            tx_list[i] = from_hex (line[pos + 1]);
+            tx_list[i+1] = from_hex (line[pos + 10]);
+            pos += 21;
+        }
     } else {
         key = NULL;
         key_len = 0;
