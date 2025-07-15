@@ -87,7 +87,7 @@ int kv_recovery_recover ()
         fclose (last_lsn_file);
     }
 
-    rec_file = fopen (RECOVERY_FILE_NAME, "w+");
+    rec_file = fopen (RECOVERY_FILE_NAME, "a+");
     if (!rec_file) {
         // todo: error handling
     }
@@ -99,13 +99,21 @@ int kv_recovery_recover ()
         if (check_log_line == NULL) {
 
         } else if (check_log_line->tx_list != NULL) {
-            for (int i = 0; i < check_log_line->tx_count; i += 2) {
-                tx_id = check_log_line->tx_list[i];
-                last_lsn = check_log_line->tx_list[i + 1];
+            for (int i = 0; i < check_log_line->tx_count; ++i) {
+                tx_id = check_log_line->tx_list[i].tx_id;
+                last_lsn = check_log_line->tx_list[i].last_lsn;
                 printf("(T%u, %u)\n", tx_id, last_lsn);
                 // find last tx lsn
+
             
                 // for - clr & and
+                /*
+                new_lsn_id = kv_recovery_abort_log (kv_tx_last_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
+                kv_tx_set_last_lsn (c_data->tx, new_lsn_id);
+                kv_tx_rollback (c_data->tx, ht, lm);
+                kv_txm_end_transaction (lm, c_data->tx);
+                c_data->tx = NULL;
+                */
             }
             kv_recovery_destroy_log_line (check_log_line);
         } else {
@@ -453,7 +461,7 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     char *new_val;
     size_t new_len;
     size_t tx_count;
-    uint32_t *tx_list;
+    struct kv_recovery_tx *tx_list;
 
     size_t pos;
     
@@ -533,11 +541,11 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
 
         tx_count = from_2_digit_hex (line + pos);
         pos += 3;
-        tx_list = (uint32_t *) malloc (tx_count * sizeof (uint32_t) * 2);
-        for (int i = 0; i < tx_count; i += 2) {
-            tx_list[i] = from_hex (line[pos + 1]);
-            tx_list[i+1] = from_hex (line[pos + 10]);
-            pos += 21;
+        tx_list = (struct kv_recovery_tx *) malloc (sizeof (struct kv_recovery_tx) * sizeof (tx_count));
+        for (int i = 0; i < tx_count; ++i) {
+            tx_list[i].tx_id = hex_to_uint32 (line + pos + 1);
+            tx_list[i].last_lsn = hex_to_uint32 (line + pos + 10);
+            pos += 19;
         }
     } else {
         key = NULL;

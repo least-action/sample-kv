@@ -63,6 +63,7 @@ int kv_run_server (uint16_t port)
     ht = kv_ht_create (2, str_hash_func, str_cmp_func);
     
     kv_recovery_recover ();  // todo: error handling
+    return 0;
 
     kv_recovery_init ();  // todo: error handling
     kv_txm_init ();  // todo: error handling

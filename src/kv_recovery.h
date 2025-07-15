@@ -59,6 +59,11 @@ enum kv_recovery_log_type {
     KV_REC_END,
 };
 
+struct kv_recovery_tx {
+    uint32_t tx_id;
+    uint32_t last_lsn;
+};
+
 struct kv_recovery_log_line {
     uint32_t lsn;
     uint32_t prev_lsn;
@@ -71,7 +76,7 @@ struct kv_recovery_log_line {
     char *new_val;
     size_t new_len;
     size_t tx_count;
-    uint32_t *tx_list;
+    struct kv_recovery_tx *tx_list;
 };
 
 int kv_recovery_lock ();
