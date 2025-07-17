@@ -97,6 +97,5 @@ uint32_t kv_recovery_end_log (lsn_id prev_id, uint32_t tx_id);
 
 struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn);
 int kv_recovery_destroy_log_line (struct kv_recovery_log_line *log);
-
  
 #endif

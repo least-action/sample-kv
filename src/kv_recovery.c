@@ -74,7 +74,13 @@ int kv_recovery_recover ()
     char last_checked_lsn_hex[8];
     struct kv_recovery_log_line* check_log_line;
     uint32_t tx_id;
-    uint32_t last_lsn;
+    uint32_t last_tx_lsn;
+    uint32_t temp_lsn;
+    // uint32_t new_lsn_id;
+    struct kv_recovery_log_line* log_line;
+    bool is_abort_started;
+    bool is_abort_end;
+    bool is_committed;
 
     last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "r");
     if (last_lsn_file == NULL) {
@@ -101,19 +107,66 @@ int kv_recovery_recover ()
         } else if (check_log_line->tx_list != NULL) {
             for (int i = 0; i < check_log_line->tx_count; ++i) {
                 tx_id = check_log_line->tx_list[i].tx_id;
-                last_lsn = check_log_line->tx_list[i].last_lsn;
-                printf("(T%u, %u)\n", tx_id, last_lsn);
-                // find last tx lsn
+                last_tx_lsn = check_log_line->tx_list[i].last_lsn;
+                printf("(T%u, %u)\n", tx_id, last_tx_lsn);
+                if (last_checked_lsn > last_tx_lsn)
+                    temp_lsn = last_checked_lsn;
+                else
+                    temp_lsn = last_tx_lsn;
+                
+                is_abort_started = false;
+                is_abort_end = false;
+                is_committed = false;
+                while (1) {
+                    ++temp_lsn;
+                    log_line = kv_recovery_get_log (temp_lsn);  // todo: perf: read sequentially + do not open repeatedly
+                    if (log_line == NULL)
+                        break;
+                    if (log_line->tx_id == tx_id) {
+                        last_tx_lsn = temp_lsn;
+                        if (is_abort_started == false && log_line->log_type == KV_REC_ABORT) {
+                            is_abort_started = true;
+                            is_abort_end = false;
+                        }
+                            
+                        if (log_line->log_type == KV_REC_COMMIT) {
+                            is_committed = true;
+                            kv_recovery_destroy_log_line (log_line);
+                            break;
+                        }
 
-            
-                // for - clr & and
-                /*
-                new_lsn_id = kv_recovery_abort_log (kv_tx_last_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
-                kv_tx_set_last_lsn (c_data->tx, new_lsn_id);
-                kv_tx_rollback (c_data->tx, ht, lm);
-                kv_txm_end_transaction (lm, c_data->tx);
-                c_data->tx = NULL;
-                */
+                        if (is_abort_started && log_line->log_type == KV_REC_END) {
+                            is_abort_end = true;
+                            kv_recovery_destroy_log_line (log_line);
+                            break;
+                        }
+                    }
+                    kv_recovery_destroy_log_line (log_line);
+                }
+                if (is_committed) {
+                    printf("tx_id: %u\nlast_tx_lsn: %u\ncommit: true\n", tx_id, last_tx_lsn);
+                } else if (is_abort_started) {
+                    if (is_abort_end)
+                        printf("tx_id: %u\nlast_tx_lsn: %u\nabort: true\nend: true", tx_id, last_tx_lsn);
+                    else
+                        printf("tx_id: %u\nlast_tx_lsn: %u\nabort: true\nend: false", tx_id, last_tx_lsn);
+                } else {
+                    printf("tx_id: %u\nlast_tx_lsn: %u\ncommit: false\n", tx_id, last_tx_lsn);
+                }
+                    
+                printf("\n\n");
+
+                
+                // if (is_abort_started) {
+                //     new_lsn_id = kv_recovery_abort_log (kv_tx_last_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
+                //     kv_tx_set_last_lsn (c_data->tx, new_lsn_id);
+                // }
+                    
+                // else
+                
+                // kv_tx_rollback (c_data->tx, ht, lm);
+                // kv_txm_end_transaction (lm, c_data->tx);
+                // c_data->tx = NULL;
             }
             kv_recovery_destroy_log_line (check_log_line);
         } else {

@@ -18,7 +18,7 @@
 #define SNAPSHOT_FILE_PREFIX "snapshot"
 #define SNAPSHOT_FILE_EXT "kvdb"
 
-static const time_t DELAY = 5;
+static const time_t DELAY = 10;
 
 static void kv_hashtable_foreach (const struct kv_ht_kv kv, void *param)
 {
