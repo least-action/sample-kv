@@ -70,6 +70,7 @@ int kv_recovery_recover ()
 {
     FILE *last_lsn_file;
     uint32_t last_checked_lsn;
+    char last_lsn_hex[16];
     char last_checked_lsn_hex[8];
     struct kv_recovery_log_line* check_log_line;
     uint32_t tx_id;
@@ -79,6 +80,8 @@ int kv_recovery_recover ()
     bool is_abort_started;
     bool is_abort_end;
     bool is_committed;
+    long pos;
+    char ch;
 
     pthread_mutex_init (&lsn_lock, NULL);
 
@@ -97,7 +100,28 @@ int kv_recovery_recover ()
     if (!recovery_file) {
         // todo: error handling
     }
-    lsn = 0;  // todo: get from file
+    fseek (recovery_file, 0, SEEK_END);
+    pos = ftell (recovery_file);
+    if (pos > 0)
+        pos -= 1;
+    while (pos > 0) {  // todo: perf
+        fseek (recovery_file, pos - 1, SEEK_SET);
+        ch = fgetc (recovery_file);
+        if (ch == '\n') {
+            break;
+        }
+        --pos;
+    }
+    if (pos == 0)
+        lsn = 0;
+    else {
+        if (fgets (last_lsn_hex, 9, recovery_file) == NULL) {
+            // error handling
+            exit (1);
+        }
+        last_lsn_hex[8] = '\0';
+        lsn = hex_to_uint32 (last_lsn_hex);
+    }
 
     // revert non terminated tx
     if (last_checked_lsn == -1) {
