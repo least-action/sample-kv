@@ -69,6 +69,7 @@ struct kv_recovery_log_line {
     uint32_t prev_lsn;
     uint32_t tx_id;
     enum kv_recovery_log_type log_type;
+    uint32_t undo_next_lsn;
     char *key;
     size_t key_len;
     char *old_val;

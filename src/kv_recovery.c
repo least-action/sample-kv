@@ -68,7 +68,6 @@ int kv_recovery_unlock ()
 
 int kv_recovery_recover ()
 {
-    FILE *rec_file;
     FILE *last_lsn_file;
     uint32_t last_checked_lsn;
     char last_checked_lsn_hex[8];
@@ -76,11 +75,12 @@ int kv_recovery_recover ()
     uint32_t tx_id;
     uint32_t last_tx_lsn;
     uint32_t temp_lsn;
-    // uint32_t new_lsn_id;
     struct kv_recovery_log_line* log_line;
     bool is_abort_started;
     bool is_abort_end;
     bool is_committed;
+
+    pthread_mutex_init (&lsn_lock, NULL);
 
     last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "r");
     if (last_lsn_file == NULL) {
@@ -93,10 +93,11 @@ int kv_recovery_recover ()
         fclose (last_lsn_file);
     }
 
-    rec_file = fopen (RECOVERY_FILE_NAME, "a+");
-    if (!rec_file) {
+    recovery_file = fopen (RECOVERY_FILE_NAME, "a+");
+    if (!recovery_file) {
         // todo: error handling
     }
+    lsn = 0;  // todo: get from file
 
     // revert non terminated tx
     if (last_checked_lsn == -1) {
@@ -108,12 +109,12 @@ int kv_recovery_recover ()
             for (int i = 0; i < check_log_line->tx_count; ++i) {
                 tx_id = check_log_line->tx_list[i].tx_id;
                 last_tx_lsn = check_log_line->tx_list[i].last_lsn;
-                printf("(T%u, %u)\n", tx_id, last_tx_lsn);
                 if (last_checked_lsn > last_tx_lsn)
                     temp_lsn = last_checked_lsn;
                 else
                     temp_lsn = last_tx_lsn;
                 
+                // analyze transaction
                 is_abort_started = false;
                 is_abort_end = false;
                 is_committed = false;
@@ -128,13 +129,11 @@ int kv_recovery_recover ()
                             is_abort_started = true;
                             is_abort_end = false;
                         }
-                            
                         if (log_line->log_type == KV_REC_COMMIT) {
                             is_committed = true;
                             kv_recovery_destroy_log_line (log_line);
                             break;
                         }
-
                         if (is_abort_started && log_line->log_type == KV_REC_END) {
                             is_abort_end = true;
                             kv_recovery_destroy_log_line (log_line);
@@ -143,30 +142,37 @@ int kv_recovery_recover ()
                     }
                     kv_recovery_destroy_log_line (log_line);
                 }
-                if (is_committed) {
-                    printf("tx_id: %u\nlast_tx_lsn: %u\ncommit: true\n", tx_id, last_tx_lsn);
-                } else if (is_abort_started) {
-                    if (is_abort_end)
-                        printf("tx_id: %u\nlast_tx_lsn: %u\nabort: true\nend: true", tx_id, last_tx_lsn);
-                    else
-                        printf("tx_id: %u\nlast_tx_lsn: %u\nabort: true\nend: false", tx_id, last_tx_lsn);
-                } else {
-                    printf("tx_id: %u\nlast_tx_lsn: %u\ncommit: false\n", tx_id, last_tx_lsn);
-                }
-                    
-                printf("\n\n");
 
+                if (is_committed || is_abort_end)
+                    continue;
                 
-                // if (is_abort_started) {
-                //     new_lsn_id = kv_recovery_abort_log (kv_tx_last_lsn (c_data->tx), kv_tx_get_id (c_data->tx));
-                //     kv_tx_set_last_lsn (c_data->tx, new_lsn_id);
-                // }
-                    
-                // else
-                
-                // kv_tx_rollback (c_data->tx, ht, lm);
-                // kv_txm_end_transaction (lm, c_data->tx);
-                // c_data->tx = NULL;
+                if (!is_abort_started) {
+                    temp_lsn = kv_recovery_abort_log (last_tx_lsn, tx_id);
+                } else {
+                    log_line = kv_recovery_get_log (last_tx_lsn);
+                    if (log_line->log_type == KV_REC_ABORT)
+                        temp_lsn = log_line->prev_lsn;
+                    else
+                        temp_lsn = log_line->undo_next_lsn;
+                    kv_recovery_destroy_log_line (log_line);
+                }
+
+                while (1) {
+                    log_line = kv_recovery_get_log (temp_lsn);
+                    if (log_line->log_type == KV_REC_BEGIN) {
+                        kv_recovery_end_log (temp_lsn, tx_id);
+                        kv_recovery_destroy_log_line (log_line);
+                        break;
+                    }
+                    if (log_line->log_type == KV_REC_UPDATE) {
+                        last_tx_lsn = kv_recovery_clr_log (
+                            last_tx_lsn, tx_id, log_line->prev_lsn,
+                            log_line->key, log_line->key_len, log_line->new_val, log_line->new_len, log_line->old_val, log_line->old_len
+                        );
+                    }
+                    temp_lsn = log_line->prev_lsn;
+                    kv_recovery_destroy_log_line (log_line);
+                }
             }
             kv_recovery_destroy_log_line (check_log_line);
         } else {
@@ -175,9 +181,7 @@ int kv_recovery_recover ()
     }
     // todo: build hash table data from dump file + redo
 
-    fclose (rec_file);
-
-    lsn = 0;  // todo: get from file
+    fclose (recovery_file);
 
     return 0;
 }
@@ -188,8 +192,6 @@ int kv_recovery_init ()
     if (!recovery_file) {
         // todo: error handling
     }
-
-    pthread_mutex_init (&lsn_lock, NULL);
 
     return 0;
 }
@@ -276,7 +278,7 @@ uint32_t kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id)
     return new_lsn;
 }
 
-static uint32_t data_change_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len, bool is_clr)
+static uint32_t data_change_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len, bool is_clr, uint32_t undo_next_lsn)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
@@ -317,6 +319,15 @@ static uint32_t data_change_log (lsn_id prev_id, uint32_t tx_id, char *key, size
     
     memcpy (pos, " ", 1);
     pos += 1;
+
+    if (is_clr) {
+        uint32_to_hex (undo_next_lsn, uint32_hex);
+        memcpy (pos, uint32_hex, 8);
+        pos += 8;
+
+        memcpy (pos, " ", 1);
+        pos += 1;
+    }
 
     size_t_to_2_digit_hex (key_len, size_t_hex);
     memcpy (pos, size_t_hex, 2);
@@ -372,7 +383,7 @@ static uint32_t data_change_log (lsn_id prev_id, uint32_t tx_id, char *key, size
 
 uint32_t kv_recovery_update_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len)
 {
-    return data_change_log (prev_id, tx_id, key, key_len, old_val, old_len, new_val, new_len, false);
+    return data_change_log (prev_id, tx_id, key, key_len, old_val, old_len, new_val, new_len, false, 0);
 }
 
 uint32_t kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id)
@@ -401,7 +412,7 @@ uint32_t kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id)
 
 uint32_t kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id, uint32_t undo_next_lsn, char *key, size_t key_len, char *cur_val, size_t cur_len, char *prev_val, size_t prev_len)
 {
-    return data_change_log (prev_id, tx_id, key, key_len, cur_val, cur_len, prev_val, prev_len, true);
+    return data_change_log (prev_id, tx_id, key, key_len, cur_val, cur_len, prev_val, prev_len, true, undo_next_lsn);
 }
 
 uint32_t kv_recovery_check_log (struct kv_ongoing_tx *tx_list, size_t list_size)
@@ -505,6 +516,7 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     uint32_t tx_id;
     char log_type_char[LOG_TYPE_LEN];
     enum kv_recovery_log_type log_type;
+    uint32_t undo_next_lsn;
 
     char len_hex[2];
     char *key;
@@ -553,6 +565,9 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
             log_type = KV_REC_COMMIT;
         } else if (log_type_char[1] == 'L') {
             log_type = KV_REC_CLR;
+            memcpy (lsn_hex, line + pos, 8);
+            pos += 8 + 1;
+            undo_next_lsn = hex_to_uint32 (lsn_hex);
         } else {
             log_type = KV_REC_CHECK;
         }
@@ -601,6 +616,7 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
             pos += 19;
         }
     } else {
+        undo_next_lsn = 0;
         key = NULL;
         key_len = 0;
         old_val = NULL;
@@ -616,6 +632,7 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     log_line->prev_lsn = prev_lsn;
     log_line->tx_id = tx_id;
     log_line->log_type = log_type;
+    log_line->undo_next_lsn = undo_next_lsn;
     log_line->key = key;
     log_line->key_len = key_len;
     log_line->old_val = old_val;
