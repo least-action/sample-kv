@@ -1,6 +1,7 @@
 #include "kv_recovery.h"
 #include "transaction.h"
 #include "utils.h"
+#include "kv_recovery_snapshot.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -26,55 +27,6 @@ static const char CLR_TYPE[LOG_TYPE_LEN+1]        = "CLR____";
 static const char CHECK_TYPE[LOG_TYPE_LEN+1]      = "CHECK__";
 static const char END_TYPE[LOG_TYPE_LEN+1]        = "END____";
 
-
-int kv_recovery_recover ()
-{
-    FILE *rec_file;
-    // fpos_t pos;
-
-    rec_file = fopen (RECOVERY_FILE_NAME, "w+");
-    if (!rec_file) {
-        // todo: error handling
-    }
-
-    // build hash table data from dump file
-
-    // analysis
-        // find check point
-        // add unterminated tx list
-
-    // redo
-    
-
-    // undo
-
-    fclose (rec_file);
-
-    // todo
-
-    return 0;
-}
-
-int kv_recovery_init ()
-{
-    recovery_file = fopen (RECOVERY_FILE_NAME, "a");
-    if (!recovery_file) {
-        // todo: error handling
-    }
-
-    lsn = 0;  // todo: get from file
-    pthread_mutex_init (&lsn_lock, NULL);
-
-    return 0;
-}
-
-int kv_recovery_destroy ()
-{
-    pthread_mutex_destroy (&lsn_lock);
-    fclose (recovery_file);
-    return 0;
-}
-
 static int uint32_to_hex (uint32_t lsn_id, char* hex)
 {
     uint32_t filter;
@@ -96,10 +48,183 @@ static uint32_t hex_to_uint32 (char *hex)
 
     hex_val = 0;
     for (int i = 0; i < 8; ++i) {
-        hex_val += from_hex (hex[i]) << (7-i);
+        hex_val += from_hex (hex[i]) << ((7-i) * 4);
     }
 
     return hex_val;
+}
+
+int kv_recovery_lock ()
+{
+    pthread_mutex_lock (&lsn_lock);
+    return 0;
+}
+
+int kv_recovery_unlock ()
+{
+    pthread_mutex_unlock (&lsn_lock);
+    return 0;
+}
+
+int kv_recovery_recover ()
+{
+    FILE *last_lsn_file;
+    uint32_t last_checked_lsn;
+    char last_lsn_hex[16];
+    char last_checked_lsn_hex[8];
+    struct kv_recovery_log_line* check_log_line;
+    uint32_t tx_id;
+    uint32_t last_tx_lsn;
+    uint32_t temp_lsn;
+    struct kv_recovery_log_line* log_line;
+    bool is_abort_started;
+    bool is_abort_end;
+    bool is_committed;
+    long pos;
+    char ch;
+
+    pthread_mutex_init (&lsn_lock, NULL);
+
+    last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "r");
+    if (last_lsn_file == NULL) {
+        last_checked_lsn = -1;
+    } else if (fread (last_checked_lsn_hex, 1, 8, last_lsn_file) != 8) {
+        last_checked_lsn = -1;
+        fclose (last_lsn_file);
+    } else {
+        last_checked_lsn = hex_to_uint32 (last_checked_lsn_hex);    
+        fclose (last_lsn_file);
+    }
+
+    recovery_file = fopen (RECOVERY_FILE_NAME, "a+");
+    if (!recovery_file) {
+        // todo: error handling
+    }
+    fseek (recovery_file, 0, SEEK_END);
+    pos = ftell (recovery_file);
+    if (pos > 0)
+        pos -= 1;
+    while (pos > 0) {  // todo: perf
+        fseek (recovery_file, pos - 1, SEEK_SET);
+        ch = fgetc (recovery_file);
+        if (ch == '\n') {
+            break;
+        }
+        --pos;
+    }
+    if (pos == 0)
+        lsn = 0;
+    else {
+        if (fgets (last_lsn_hex, 9, recovery_file) == NULL) {
+            // error handling
+            exit (1);
+        }
+        last_lsn_hex[8] = '\0';
+        lsn = hex_to_uint32 (last_lsn_hex);
+    }
+
+    // revert non terminated tx
+    if (last_checked_lsn == -1) {
+    } else {
+        check_log_line = kv_recovery_get_log (last_checked_lsn);
+        if (check_log_line == NULL) {
+
+        } else if (check_log_line->tx_list != NULL) {
+            for (int i = 0; i < check_log_line->tx_count; ++i) {
+                tx_id = check_log_line->tx_list[i].tx_id;
+                last_tx_lsn = check_log_line->tx_list[i].last_lsn;
+                if (last_checked_lsn > last_tx_lsn)
+                    temp_lsn = last_checked_lsn;
+                else
+                    temp_lsn = last_tx_lsn;
+                
+                // analyze transaction
+                is_abort_started = false;
+                is_abort_end = false;
+                is_committed = false;
+                while (1) {
+                    ++temp_lsn;
+                    log_line = kv_recovery_get_log (temp_lsn);  // todo: perf: read sequentially + do not open repeatedly
+                    if (log_line == NULL)
+                        break;
+                    if (log_line->tx_id == tx_id) {
+                        last_tx_lsn = temp_lsn;
+                        if (is_abort_started == false && log_line->log_type == KV_REC_ABORT) {
+                            is_abort_started = true;
+                            is_abort_end = false;
+                        }
+                        if (log_line->log_type == KV_REC_COMMIT) {
+                            is_committed = true;
+                            kv_recovery_destroy_log_line (log_line);
+                            break;
+                        }
+                        if (is_abort_started && log_line->log_type == KV_REC_END) {
+                            is_abort_end = true;
+                            kv_recovery_destroy_log_line (log_line);
+                            break;
+                        }
+                    }
+                    kv_recovery_destroy_log_line (log_line);
+                }
+
+                if (is_committed || is_abort_end)
+                    continue;
+                
+                if (!is_abort_started) {
+                    temp_lsn = kv_recovery_abort_log (last_tx_lsn, tx_id);
+                } else {
+                    log_line = kv_recovery_get_log (last_tx_lsn);
+                    if (log_line->log_type == KV_REC_ABORT)
+                        temp_lsn = log_line->prev_lsn;
+                    else
+                        temp_lsn = log_line->undo_next_lsn;
+                    kv_recovery_destroy_log_line (log_line);
+                }
+
+                while (1) {
+                    log_line = kv_recovery_get_log (temp_lsn);
+                    if (log_line->log_type == KV_REC_BEGIN) {
+                        kv_recovery_end_log (temp_lsn, tx_id);
+                        kv_recovery_destroy_log_line (log_line);
+                        break;
+                    }
+                    if (log_line->log_type == KV_REC_UPDATE) {
+                        last_tx_lsn = kv_recovery_clr_log (
+                            last_tx_lsn, tx_id, log_line->prev_lsn,
+                            log_line->key, log_line->key_len, log_line->new_val, log_line->new_len, log_line->old_val, log_line->old_len
+                        );
+                    }
+                    temp_lsn = log_line->prev_lsn;
+                    kv_recovery_destroy_log_line (log_line);
+                }
+            }
+            kv_recovery_destroy_log_line (check_log_line);
+        } else {
+            kv_recovery_destroy_log_line (check_log_line);
+        }
+    }
+    // todo: build hash table data from dump file + redo
+
+    fclose (recovery_file);
+
+    return 0;
+}
+
+int kv_recovery_init ()
+{
+    recovery_file = fopen (RECOVERY_FILE_NAME, "a");
+    if (!recovery_file) {
+        // todo: error handling
+    }
+
+    return 0;
+}
+
+int kv_recovery_destroy ()
+{
+    pthread_mutex_destroy (&lsn_lock);
+    fclose (recovery_file);
+    return 0;
 }
 
 static int size_t_to_2_digit_hex (size_t s, char *hex)
@@ -129,7 +254,7 @@ static size_t from_2_digit_hex (char *hex)
     return hex_val;
 }
 
-int kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id)
+uint32_t kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
@@ -153,7 +278,7 @@ int kv_recovery_begin_log (lsn_id prev_id, uint32_t tx_id)
     return new_lsn;
 }
 
-int kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id)
+uint32_t kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
@@ -177,7 +302,7 @@ int kv_recovery_commit_log (lsn_id prev_id, uint32_t tx_id)
     return new_lsn;
 }
 
-static int data_change_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len, bool is_clr)
+static uint32_t data_change_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len, bool is_clr, uint32_t undo_next_lsn)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
@@ -218,6 +343,15 @@ static int data_change_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t ke
     
     memcpy (pos, " ", 1);
     pos += 1;
+
+    if (is_clr) {
+        uint32_to_hex (undo_next_lsn, uint32_hex);
+        memcpy (pos, uint32_hex, 8);
+        pos += 8;
+
+        memcpy (pos, " ", 1);
+        pos += 1;
+    }
 
     size_t_to_2_digit_hex (key_len, size_t_hex);
     memcpy (pos, size_t_hex, 2);
@@ -271,12 +405,12 @@ static int data_change_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t ke
     return new_lsn;
 }
 
-int kv_recovery_update_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len)
+uint32_t kv_recovery_update_log (lsn_id prev_id, uint32_t tx_id, char *key, size_t key_len, char *old_val, size_t old_len, char *new_val, size_t new_len)
 {
-    return data_change_log (prev_id, tx_id, key, key_len, old_val, old_len, new_val, new_len, false);
+    return data_change_log (prev_id, tx_id, key, key_len, old_val, old_len, new_val, new_len, false, 0);
 }
 
-int kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id)
+uint32_t kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
@@ -300,47 +434,53 @@ int kv_recovery_abort_log (lsn_id prev_id, uint32_t tx_id)
     return new_lsn;
 }
 
-int kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id, uint32_t undo_next_lsn, char *key, size_t key_len, char *cur_val, size_t cur_len, char *prev_val, size_t prev_len)
+uint32_t kv_recovery_clr_log (lsn_id prev_id, uint32_t tx_id, uint32_t undo_next_lsn, char *key, size_t key_len, char *cur_val, size_t cur_len, char *prev_val, size_t prev_len)
 {
-    return data_change_log (prev_id, tx_id, key, key_len, cur_val, cur_len, prev_val, prev_len, true);
+    return data_change_log (prev_id, tx_id, key, key_len, cur_val, cur_len, prev_val, prev_len, true, undo_next_lsn);
 }
 
-int kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size)
+uint32_t kv_recovery_check_log (struct kv_ongoing_tx *tx_list, size_t list_size)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
     char *tx_id_line;
     int tx_id_line_len;
-    char hex[8];
+    char tx_id_hex[8];
+    char lsn_hex[8];
+    char size_t_hex[2];
 
     if (list_size == 0) {
-        {
-            new_lsn = ++lsn;
-            snprintf (
-                line, KV_RECOVERY_MAX_LINE_LEN,
-                "%08X 00000000 T00000000 %s\n",
-                new_lsn, CHECK_TYPE
-            );  // todo: perf: use more efficient (ex. memset)
-
-            if (fputs (line, recovery_file) == EOF) {
-                // todo: error handling
-            }
-            fflush (recovery_file);
-        }    
+        new_lsn = ++lsn;
+        snprintf (
+            line, KV_RECOVERY_MAX_LINE_LEN,
+            "%08X 00000000 T00000000 %s 00\n",
+            new_lsn, CHECK_TYPE
+        );  // todo: perf: use more efficient (ex. memset)
+        if (fputs (line, recovery_file) == EOF) {
+            // todo: error handling
+        }
+        fflush (recovery_file);
     } else {
-        tx_id_line_len = 10 * list_size - 1;
+        tx_id_line_len = 3 + 19 * list_size - 1;
         tx_id_line = (char *) malloc (tx_id_line_len);
         
-        // pthread_mutex_lock (&lsn_lock);
-        // snapshot 스레드에서 이미 락을 획득
+        // pthread_mutex_lock (&lsn_lock);  > snapshot 스레드에서 이미 락을 획득
         {
             new_lsn = ++lsn;
+            size_t_to_2_digit_hex (list_size, size_t_hex);
+            memcpy (tx_id_line, size_t_hex, 2);
+            memset (tx_id_line + 2, ' ', 1);
+
             for (int i = 0; i < list_size; ++i) {
-                uint32_to_hex (tx_id_list[i], hex);
-                memset (tx_id_line + (i * 10), 'T', 1);
-                memcpy (tx_id_line + (i * 10) + 1, hex, 8);
+                // todo
+                uint32_to_hex (tx_list[i].tx_id, tx_id_hex);
+                uint32_to_hex (tx_list[i].last_lsn, lsn_hex);
+                memset (tx_id_line + 3 + (i * 19), 'T', 1);
+                memcpy (tx_id_line + 3 + (i * 19) + 1, tx_id_hex, 8);
+                memset (tx_id_line + 3 + (i * 19) + 9, ' ', 1);
+                memcpy (tx_id_line + 3 + (i * 19) + 10, lsn_hex, 8);
                 if (i < list_size - 1)
-                    memset (tx_id_line + (i * 10) + 2, ' ', 1);
+                    memset (tx_id_line + (i * 19) + 21, ' ', 1);
             }
             snprintf (
                 line, KV_RECOVERY_MAX_LINE_LEN,
@@ -365,7 +505,7 @@ int kv_recovery_check_log (uint32_t *tx_id_list, size_t list_size)
     return new_lsn;
 }
 
-int kv_recovery_end_log (lsn_id prev_id, uint32_t tx_id)
+uint32_t kv_recovery_end_log (lsn_id prev_id, uint32_t tx_id)
 {
     uint32_t new_lsn;
     char line[KV_RECOVERY_MAX_LINE_LEN];
@@ -400,6 +540,7 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     uint32_t tx_id;
     char log_type_char[LOG_TYPE_LEN];
     enum kv_recovery_log_type log_type;
+    uint32_t undo_next_lsn;
 
     char len_hex[2];
     char *key;
@@ -408,12 +549,14 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     size_t old_len;
     char *new_val;
     size_t new_len;
+    size_t tx_count;
+    struct kv_recovery_tx *tx_list;
 
     size_t pos;
     
     recovery_file = fopen (RECOVERY_FILE_NAME, "r");  // todo: perf: reuse file object
     
-    line_lsn = -1;
+    line_lsn = 0;
     while ((fgets (line, KV_RECOVERY_MAX_LINE_LEN, recovery_file)) != NULL) {  // todo: perf
         memcpy (lsn_hex, line, 8);
         line_lsn = hex_to_uint32 (lsn_hex);
@@ -446,6 +589,9 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
             log_type = KV_REC_COMMIT;
         } else if (log_type_char[1] == 'L') {
             log_type = KV_REC_CLR;
+            memcpy (lsn_hex, line + pos, 8);
+            pos += 8 + 1;
+            undo_next_lsn = hex_to_uint32 (lsn_hex);
         } else {
             log_type = KV_REC_CHECK;
         }
@@ -475,13 +621,34 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
         memcpy (old_val, line + pos, old_len);
         pos += old_len + 1;
         memcpy (new_val, line + pos, new_len);
-    } else {
+        tx_count = 0;
+        tx_list = NULL;
+    } else if (log_type == KV_REC_CHECK) {
         key = NULL;
         key_len = 0;
         old_val = NULL;
         old_len = 0;
         new_val = NULL;
         new_len = 0;
+
+        tx_count = from_2_digit_hex (line + pos);
+        pos += 3;
+        tx_list = (struct kv_recovery_tx *) malloc (sizeof (struct kv_recovery_tx) * sizeof (tx_count));
+        for (int i = 0; i < tx_count; ++i) {
+            tx_list[i].tx_id = hex_to_uint32 (line + pos + 1);
+            tx_list[i].last_lsn = hex_to_uint32 (line + pos + 10);
+            pos += 19;
+        }
+    } else {
+        undo_next_lsn = 0;
+        key = NULL;
+        key_len = 0;
+        old_val = NULL;
+        old_len = 0;
+        new_val = NULL;
+        new_len = 0;
+        tx_count = 0;
+        tx_list = NULL;
     }
     
     log_line = (struct kv_recovery_log_line *) malloc (sizeof (struct kv_recovery_log_line));
@@ -489,12 +656,15 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     log_line->prev_lsn = prev_lsn;
     log_line->tx_id = tx_id;
     log_line->log_type = log_type;
+    log_line->undo_next_lsn = undo_next_lsn;
     log_line->key = key;
     log_line->key_len = key_len;
     log_line->old_val = old_val;
     log_line->old_len = old_len;
     log_line->new_val = new_val;
     log_line->new_len = new_len;
+    log_line->tx_count = tx_count;
+    log_line->tx_list = tx_list;
 
     fclose (recovery_file);
 
@@ -506,9 +676,11 @@ int kv_recovery_destroy_log_line (struct kv_recovery_log_line *log)
     if (log == NULL)
         return 0;
     
+    // todo: null check?
     free (log->key);
     free (log->old_val);
     free (log->new_val);
+    free (log->tx_list);
     free (log);
     
     return 0;

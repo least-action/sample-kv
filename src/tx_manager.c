@@ -95,7 +95,7 @@ int kv_txm_end_transaction (struct kv_lm *lm, struct kv_tx *tx)
 
 
 struct list_with_idx {
-    uint32_t *array_list;
+    struct kv_ongoing_tx *tx_list;
     int idx;
 };
 
@@ -103,29 +103,30 @@ static void add_data(void *param, void *data)
 {
     struct list_with_idx *lwi = (struct list_with_idx *) param;
     struct kv_tx *tx = (struct kv_tx *) data;
+    struct kv_ongoing_tx tx_data;
 
-    lwi->array_list[lwi->idx] = kv_tx_get_id (tx);
+    tx_data.tx_id = kv_tx_get_id (tx);
+    tx_data.last_lsn = kv_tx_last_lsn (tx);
+    lwi->tx_list[lwi->idx] = tx_data;
+    ++(lwi->idx);
 }
 
 // need to use with rec file lock
-size_t kv_txm_ongoing_transaction_ids (uint32_t **array_start)
+size_t kv_txm_ongoing_transaction_ids (struct kv_ongoing_tx **array_start)
 {
-    uint32_t *array_list;
+    struct kv_ongoing_tx *tx_ongoing_list;
     size_t size;
     struct list_with_idx lwi;
 
     size = kv_ll_size (tx_list);
     if (size == 0)
         return size;
-    array_list = (uint32_t *) malloc (size);
-    lwi.array_list = array_list;
+    tx_ongoing_list = (struct kv_ongoing_tx *) malloc (size);
+    lwi.tx_list = tx_ongoing_list;
+    lwi.idx = 0;
 
-    
-    for (int i = 0; i < size; ++i) {
-        lwi.idx = i;
-        kv_ll_foreach (tx_list, add_data, &lwi);
-    }
+    kv_ll_foreach (tx_list, add_data, &lwi);
 
-    *array_start = array_list;
+    *array_start = tx_ongoing_list;
     return size;
 }
