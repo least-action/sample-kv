@@ -24,11 +24,9 @@ struct kv_lm* kv_lm_create (void)
     struct kv_lm *lm = (struct kv_lm *) malloc (sizeof (struct kv_lm));
     lm->size = default_list_size;
     lm->counter = ATOMIC_VAR_INIT (0);
-    lm->lock_list = (struct kv_rwl **) malloc (lm->size);
+    lm->lock_list = (struct kv_rwl **) malloc (lm->size * sizeof (struct kv_rwl *));
     for (int i = 0; i < lm->size; ++i) {
         lm->lock_list[i] = kv_rwl_create ();
-        // kv_rwl_init (lm->lock_list[i]);
-        // pthread_rwlock_init (&lm->lock_list[i], NULL);
     }
     return lm;
 }

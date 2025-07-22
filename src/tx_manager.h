@@ -2,11 +2,12 @@
 #define __KV_TX_MANAGER_H__
 
 #include "lock_manager.h"
+#include "linked_list.h"
 
 #include <stdint.h>
 #include <pthread.h>
 
-#include "linked_list.h"
+#define KV_TX_ID_FILE "tx_id.kvdb"
 
 struct kv_ongoing_tx {
     uint32_t tx_id;
