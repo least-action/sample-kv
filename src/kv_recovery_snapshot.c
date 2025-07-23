@@ -134,7 +134,16 @@ void* kv_recovery_snapshot_handler (void *data)
     // 3. close file
     fclose (snapshot_file);
 
-    last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "r+");  // todo: create if not exists
+    last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "r+");
+    if (last_lsn_file == NULL) {
+        last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "w");
+        if (last_lsn_file == NULL) {
+            // todo: error handling
+            exit (1);
+        }
+        fclose (last_lsn_file);
+    }
+    last_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "r+");
     snprintf (last_lsn_hex, 10, "%08X\n", check_lsn);
     fputs (last_lsn_hex, last_lsn_file);
     fclose (last_lsn_file);
