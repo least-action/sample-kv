@@ -129,6 +129,7 @@ struct kv_tx* kv_txm_start_new_transaction ()
         kv_ll_add (tx_list, new_tx);
         uint32_to_hex (transaction_id, tx_id_hex);
         fputs (tx_id_hex, tx_id_file);  // todo: bug: write multiple (maybe fork copy buffer problem)
+        fflush (tx_id_file);
     }
     pthread_mutex_unlock (&tx_lock);
 
