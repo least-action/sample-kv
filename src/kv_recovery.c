@@ -2,6 +2,7 @@
 #include "transaction.h"
 #include "utils.h"
 #include "kv_recovery_snapshot.h"
+#include "kv_command.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -203,10 +204,106 @@ int kv_recovery_recover ()
             kv_recovery_destroy_log_line (check_log_line);
         }
     }
-    // todo: build hash table data from dump file + redo
-
     fclose (recovery_file);
 
+    return 0;
+}
+
+int kv_recovery_redo (struct kv_ht *ht)
+{
+    // todo: build hash table data from dump file + redo
+    FILE *last_checked_lsn_file;
+    char last_checked_lsn_hex[9];
+    uint32_t last_checked_lsn;
+
+    char snapshot_file_name[100];
+    FILE *snapshot_file;
+    char ch;
+    struct key_data *k_data = NULL;
+    struct val_data *v_data = NULL;
+    size_t key_len;
+    size_t val_len;
+
+    struct kv_ht_kv old_kv = { NULL, NULL };
+    struct val_data *old_v_data = NULL;
+
+    char line_buf[KV_RECOVERY_MAX_LINE_LEN];
+
+    // get last check lsn
+    last_checked_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "r");
+    if (last_checked_lsn_file == NULL) {
+        memcpy (last_checked_lsn_hex, "00000000", 8);
+        last_checked_lsn = 0;
+    } else {
+        if (!fgets (last_checked_lsn_hex, 9, last_checked_lsn_file)) {
+            // todo: error handling
+            exit (1);
+        }
+        last_checked_lsn = hex_to_uint32 (last_checked_lsn_hex);
+        fclose (last_checked_lsn_file);
+    }
+    last_checked_lsn_hex[8] = '\0';
+    
+    // find snapshot file
+    snprintf (snapshot_file_name, 100, "%s/snapshot_%s.kvdb", SNAPSHOT_DIR_NAME, last_checked_lsn_hex);
+    snapshot_file = fopen (snapshot_file_name, "r");
+    if (snapshot_file == NULL) {
+        // todo: error handling
+        perror ("snapshot file open error");
+        exit (1);
+    }
+    printf("filename: %s\n", snapshot_file_name);
+    
+    while (1) {
+        if (!fgets (line_buf, KV_RECOVERY_MAX_LINE_LEN, snapshot_file)) {
+            if (feof(snapshot_file))
+                break;
+            // todo: error handling
+            exit (1);
+        }
+        key_len = 0;
+        val_len = 0;
+        for (int i = 0; i < KV_RECOVERY_MAX_LINE_LEN; ++i) {
+            ch = line_buf[i];
+            if (ch == ' ') {
+                key_len = i;
+            } else if (ch == '\n') {  // todo: check: why does this get '\n' at the EOF?
+                val_len = i - key_len - 1;
+                break;
+            }
+        }
+        
+        k_data = (struct key_data *) malloc (sizeof (struct key_data));
+        k_data->key = (char *) malloc (key_len);
+        memcpy (k_data->key, line_buf, key_len);
+        k_data->key_len = key_len;
+        
+        v_data = (struct val_data *) malloc (sizeof (struct val_data));
+        v_data->value = (char *) malloc (val_len);
+        memcpy (v_data->value, line_buf + key_len + 1, val_len);
+        v_data->val_len = val_len;
+
+        if (kv_ht_set (ht, k_data, v_data) != NULL) {
+            // todo: error handling
+            exit (1);
+        }
+    }
+    fclose (snapshot_file);
+    
+    // redo from check to end
+        // read every line
+    while (1) {
+        // if (1) {
+        //     old_v_data = kv_ht_get ();
+        //     old_kv = kv_ht_set (ht);
+        // } else {
+        //     old_kv = kv_ht_del ();
+        // }
+
+        // free memory
+
+        break;
+    }
     return 0;
 }
 

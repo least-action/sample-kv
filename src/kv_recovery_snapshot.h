@@ -5,8 +5,12 @@
 
 #include <pthread.h>
 
-#define SNAPSHOT_FILE_NAME "snapshot.kvdb"
+#define SNAPSHOT_DIR_NAME "snapshots"
 #define LAST_SNAPSHOT_LSN_FILE "last_checked_lsn.kvdb"
+
+// struct kv_snapshot_file {
+//     char name[22];  // snapshot_00000000.kvdb
+// };
 
 struct kv_rec_snapshot_arg {
     pthread_cond_t *terminate_cond;
