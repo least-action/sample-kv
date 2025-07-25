@@ -64,7 +64,6 @@ int kv_run_server (uint16_t port)
     
     kv_recovery_recover ();  // todo: error handling
     kv_recovery_redo (ht);  // todo: error handling
-    // return 0;
 
     kv_recovery_init ();  // todo: error handling
     kv_txm_init ();  // todo: error handling
