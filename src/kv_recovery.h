@@ -24,7 +24,7 @@
 
 
 /*
- * file format
+ * file format  // todo: fix: edit file format
  * LSN      PrevLSN  TxID      Type    l1 l2 l3 Key BeforeImage AfterImage
  * 00000001 00000000 T00000001 BEGIN__
  * 00000002 00000001 T00000001 UPDATE_ 03 03 00 key old
@@ -40,11 +40,12 @@
  */
 
 #include "tx_manager.h"
+#include "kv_hash.h"
 
 #include <stdint.h>
 #include <stddef.h>
 
-#define KV_RECOVERY_MAX_LINE_LEN 128
+#define KV_RECOVERY_MAX_LINE_LEN 128  // todo: check if longer
 
 
 typedef uint32_t lsn_id;
@@ -84,6 +85,7 @@ int kv_recovery_lock ();
 int kv_recovery_unlock ();
 
 int kv_recovery_recover ();
+int kv_recovery_redo (struct kv_ht *ht);
 
 int kv_recovery_init ();
 int kv_recovery_destroy ();

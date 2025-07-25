@@ -14,7 +14,6 @@
 #include <sys/stat.h>
 #include <string.h>
 
-#define SNAPSHOT_DIR_NAME "snapshots"
 #define SNAPSHOT_FILE_PREFIX "snapshot"
 #define SNAPSHOT_FILE_EXT "kvdb"
 
@@ -24,7 +23,7 @@ static void kv_hashtable_foreach (const struct kv_ht_kv kv, void *param)
 {
     FILE *snapshot_file;
     snapshot_file = (FILE *) param;
-    char line_buff[128];
+    char line_buff[KV_RECOVERY_MAX_LINE_LEN];
     struct key_data *kd;
     struct val_data *vd;
     int cur;

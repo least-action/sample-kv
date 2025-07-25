@@ -206,7 +206,7 @@ void run_command(struct kv_ht *ht, struct kv_lm *lm, const char* command, const 
         value = (char *) malloc (sizeof (char) * value_len);
         memcpy (value, command + key_len + 5, value_len);
 
-        k_data = (struct key_data *) malloc (sizeof (struct key_data));
+        k_data = (struct key_data *) malloc (sizeof (struct key_data));  // todo: fix: mem: malloc when already exists?
         k_data->key = key;
         k_data->key_len = key_len;
         v_data = (struct val_data *) malloc (sizeof (struct val_data));
