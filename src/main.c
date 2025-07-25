@@ -17,9 +17,6 @@ int main(int argc, char* argv[])
     // todo: add delete all command
     // todo: terminate main thread when child thread exited wtih error
     // todo: remove exit(1)
-    
-    // todo: log file 삭제 후 재생성 되는 문제 수정
-    // todo: recover 함수 작성
 
     // todo: begin 후 end 없이 끊긴 tx 처리하기
 
