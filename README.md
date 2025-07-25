@@ -1,71 +1,174 @@
 ## 개요
-database 및 시스템 프포그래밍 학습용 key value database repo
+* database 및 시스템 프로그래밍 학습용 key value database.
+* 데이터베이스 시스템의 동시성 제어, 트랜잭션, 복구 등을 직접 구현한 프로젝트입니다.
 
-## 기본 정책
-1.  다음과 같은 lock 정책을 사용.
+**개발 환경**: Ubuntu 22.04.5 LTS  
+**기술 스택**: C, Linux System Programming, Python
+
+## 빌드 및 실행
+#### 빌드
+```bash
+make
+```
+#### 실행
+```bash
+./a.out
+```
+
+#### 클라이언트 접속 예시
+```bash
+$ telnet 127.0.0.1 1234
+```
+#### 입력 예시
+```
+get a
+(nil)
+```
+```
+set a b
+OK
+```
+```
+get a
+b
+```
+```
+begin
+started
+
+set a c
+OK
+
+abort
+rollback
+```
+```
+begin
+started
+
+set a c
+OK
+
+del a
+1
+
+del b
+0
+
+get a
+(nil)
+
+commit
+commit
+```
+
+## 기능
+### 1. 동시성 제어
+* 다중 클라이언트를 위해 멀티스레딩 사용.
+* 다음과 같은 lock 정책 사용.
     ```
-            read  |  write
+            read  |   write
     read    true  |   false
     write  false  |   false
     ```
-    
-2. rigorous 2PL(2 Phase Lock) 을 사용.
-    * 2PL 은 직렬성을 보장해줄 수 있음.
-    * rigorous(or strict) 2PL 은 dirty read 를 방지하여 연쇄 복구를 방지하여 복구 과정을 간소화 할 수 있음.
-    * strict 2PL 을 안쓰는 이유(?)
+* 2PL(2 Phase Lock) 구현으로 직렬성 보장. (Rigorous 2PL)
+* Rigorous(or strict) 2PL 구현으로 dirty read 를 금지하여 연쇄 복구를 방지.
 
-3. REDO_UNDO 로그를 이용해 transaction rollback 및 복구
+### 2. REDO/UNDO 로그
+* REDO/UNDO 로그를 통해 트랜잭션 롤백.
+* 장애 발생 시에도 로그를 통해 시스템을 일관된 상태로 복원.
 
+### 3. 복구
+1. 종료되지 않은 트랜잭션들을 찾아 REDO/UNDO 로그에 rollback 관련 로그 추가.
+2. snapshot 파일을 기반으로 메모리로 로드.
+3. LSN 위치를 찾아 그 뒤부터 REDO 를 수행.
 
-## REDO/UNDO log
-서버가 처리는 했지만 영구 저장장치(ex. hdd)에 쓰기 전 시스템 종료된 상황에 복구하기 위한 로그 데이터.
-Transaction rollback 시 복구를 위한 로그 데이터.
+<br>
 
-kvdb 파일에는 수행한 LSN 의 마지막 값을 포함하고 있음.
-멱등성을 위해서 INC 명령 대신 WRITE 명령으로 작성.
-
-### format
-{8자리 LSN} T{Transaction ID} {W | D} {2자리 key len} {2자리 val len} {2자리 old val len} {key} {new value} {old value}
+## 각 파일 형태
+### 1. recovery.kvdb
+rollback 및 복구에 필요한 로그를 저장하는 파일. 타입 설명은 아래와 같음.
+| 타입 | 설명 |
+|-----|-----|
+| BEGIN__ | 트랜잭션 시작 |
+| UPDATE_ | 데이터 갱신: key 길이, 이전 value 길이, 새 value 길이, key, 이전 value, 새 value |
+| COMMIT_ | 트랜잭션 커밋 |
+| ABORT__ | 트랜잭션 중단 |
+| CLR____ | 데이터 복구: 복구하는 로그 LSN, (이하 UPDATE_ 와 동일) |
+| CHECK__ | 체크 포인트: 미완료 트랜잭션 수, [트랜잭션 id, 해당 트랜잭션의 마지막 LSN] 쌍 반복 |
 ```log
-00000001 T00000001 B 00 00 00    0038
-00000002 T00000001 W 03 05 00 key old_value NULL 0054
-00000003 T00000001 C 00 00 00    0038
-00000004 T00000002 B 00 00 00    0038
-00000005 T00000002 W 03 00 05 key NULL old_value 0054
-00000006 T00000003 W 03 03 00 name joe NULL 0049
-00000007 T00000002 A 00 00 00    0038
-00000008 T00000003 B 00 00 00    0038
+LSN      prevLSN  TX_ID     type    {payload}
+--------------------------------------------------------------------------------
+00000001 00000000 T00000000 CHECK__ 00
+00000002 00000000 T00000001 BEGIN__
+00000003 00000002 T00000001 UPDATE_ 01 00 01 a  b
+00000004 00000003 T00000001 COMMIT_
+00000005 00000000 T00000002 BEGIN__
+00000006 00000005 T00000002 UPDATE_ 01 00 01 b  c
+00000007 00000006 T00000002 COMMIT_
+00000008 00000000 T00000003 BEGIN__
+00000009 00000008 T00000003 UPDATE_ 01 00 01 c  d
+0000000A 00000009 T00000003 COMMIT_
+0000000B 00000000 T00000000 CHECK__ 00
+0000000C 00000000 T00000000 CHECK__ 00
+0000000D 00000000 T00000004 BEGIN__
+0000000E 00000000 T00000000 CHECK__ 01 T00000004 0000000D
+0000000F 0000000D T00000004 UPDATE_ 01 01 00 a b 
+00000010 0000000F T00000004 UPDATE_ 01 01 01 b c d
+00000011 00000010 T00000004 UPDATE_ 01 01 01 c d e
+00000012 00000000 T00000000 CHECK__ 01 T00000004 00000011
+00000013 00000000 T00000000 CHECK__ 01 T00000004 00000011
+00000014 00000000 T00000005 BEGIN__
+00000015 00000014 T00000005 UPDATE_ 01 00 01 x  y
+00000016 00000015 T00000005 UPDATE_ 01 00 01 y  z
+00000017 00000000 T00000000 CHECK__ 02 T00000004 00000011 T00000005 00000016
+00000018 00000016 T00000005 UPDATE_ 01 00 01 z  a
+00000019 00000000 T00000000 CHECK__ 02 T00000004 00000011 T00000005 00000018
+0000001A 00000000 T00000000 CHECK__ 02 T00000004 00000011 T00000005 00000018
+0000001B 00000018 T00000005 COMMIT_
+0000001C 00000011 T00000004 ABORT__
+0000001D 00000011 T00000004 CLR____ 00000010 01 01 01 c e d
+0000001E 0000001D T00000004 CLR____ 0000000F 01 01 01 b d c
+0000001F 0000001E T00000004 CLR____ 0000000D 01 00 01 a  b
+00000020 0000000D T00000004 END____
 ```
 
 
-## in_prograss_transactions 파일
-system crash 후 복구 과정에서 UNDO 여부를 확인해야하는 transaction 대상 확인용.
-종료되지 않은 트랜잭션은 반드시 로그에 남아있어야 하지만, 서버 응답 속도 향상을 위해 종료된 트랜잭션이 파일에 남아있을 수도 있다.
-이게 없으면 log 전체를 읽어서 종료하지 않은 transaction 이 있는지 확인해야 한다.
-
+### 2. last_checked_lsn.kvdb
+마지막으로 check 한 lsn 를 저장하는 파일. 이 LSN 을 기준으로 복구 작업을 수행.
 ```log
-T00000002
-T00000003
+00000004
 ```
 
-## kvdb file
-
-### format
-LAST_LSN: {log LSN}  
-{key1 len} {val1 len} {key1} {val1}  
-{key2 len} {val2 len} {key2} {val2}  
-...
-```kvdb
-LAST_LSN: 00000004
-03 05 key value
-04 07 name michale
+### 3. tx_id.kvdb
+발급한 tx id 를 저장하는 파일. 목적은 서버가 시작할 때 마지막 발급한 id 값을 보고 로그가 겹치지 않게 함. (제일 마지막 값만 필요)
+```log
+00000001
+00000002
+00000003
+00000004
+00000005
 ```
 
-## 복구 과정
-(복구 과정 중에는 kvdb 를 업데이트하지 않는다. 이유는 복구 중에 실패 발생시 문제를 파악하기 쉬움.)
+### 4. snapshot_{LSN}.kvdb
+check 수행시 해시 테이블 전체 데이터를 저장하는 
+```log
+c e
+x y
+y z
+b d
+z a
+```
 
-1. 종료되지 않은 트랜잭션들을 찾아 REDO/UNDO log 에 A 로그를 추가한다. (A 로그를 추가하면서 진행중인 트랜잭션 데이터에서 제거한다. 혹시 로그를 추가했지만 진행중인 트랜잭션에서 제거하지 못하고 crash 가 난 경우를 대비해 한 Transaction 에서 A 가 여러번 찍혀도 문제 없게 설계한다.)
-2. kvdb 파일을 기반으로 memory 로 읽어온다.
-3. log LSN 위치를 찾아 그 뒤부터 REDO 를 수행한다.
+### TODO
+1. recovery.kvdb 에서 특정 LSN 에 해당하는 로그 정보를 읽는 과정 개선.
+    * kv_recovery_get_log 함수가 호출 될 때마다 파일을 열고 맨 앞에서부터 순차적으로 검색을 수행 중.
+    * 파일 open/close 수행 저감.
+    * 캐시를 사용하거나 로그 줄 길이를 고정하는 등 검색 속도 개선.
 
-참고: 복구과정에서는 A 명령 수행시 특정 Transaction 이 수행한 LSN 들을 아래에서부터 B가 나올때 까지 훑어보지만, 서비스 중에 A 명령 수행시 메모리상에 저장해놓은 REDO/UNDO 파일의 position 목록을 보며 수행한다.
+2. recovery.kvdb 와 tx_id.kvdb 파일 쓰기 작업 개선.
+    * 파일에 쓰기를 할 때마다 fflush 를 하고 있는데, 이는 kv_recovery_snapshot.c 에서 fork로 생성된 프로세스가 표준 입출력의 버퍼 공간을 복사해 가면서 중복 쓰기 발생.
+    * 쓰기와 fflush 사이에 fork 가 수행될 수 있어 여전히 문제 발생 가능.
+
+3. dead lock 방지 프로세스 추가
+
