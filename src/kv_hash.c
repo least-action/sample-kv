@@ -94,6 +94,7 @@ static void kv_ht_resize (struct kv_ht *ht, size_t size)
 
     // todo: lock
     new_table = (struct kv_ht_elem **) malloc (sizeof (struct kv_ht_elem *) * size);
+    memset (new_table, 0, sizeof (struct kv_ht_elem *) * size);
     for (int i = 0; i < ht->size; ++i) {
         while (ht->table[i] != NULL) {
             hash = ht->hash_func (ht->table[i]->key);
@@ -102,8 +103,7 @@ static void kv_ht_resize (struct kv_ht *ht, size_t size)
             
             if (new_table[hash] == NULL) {
                 new_table[hash] = target;
-            }
-            else {
+            } else {
                 last_elem = new_table[hash];
                 while (last_elem->next != NULL)
                     last_elem = last_elem->next;

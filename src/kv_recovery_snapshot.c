@@ -68,6 +68,7 @@ void* kv_recovery_snapshot_handler (void *data)
     char last_lsn_hex[16];
 
     pid = 0;
+    return NULL;
     pthread_mutex_lock (lock);
     while (is_running) {
         

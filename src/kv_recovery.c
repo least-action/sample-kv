@@ -223,11 +223,13 @@ int kv_recovery_redo (struct kv_ht *ht)
     struct val_data *v_data = NULL;
     size_t key_len;
     size_t val_len;
+    char line_buf[KV_RECOVERY_MAX_LINE_LEN];
 
+    uint32_t lsn;
+    struct kv_recovery_log_line* log_line;
+    struct key_data kd = { NULL, 0 };
     struct kv_ht_kv old_kv = { NULL, NULL };
     struct val_data *old_v_data = NULL;
-
-    char line_buf[KV_RECOVERY_MAX_LINE_LEN];
 
     // get last check lsn
     last_checked_lsn_file = fopen (LAST_SNAPSHOT_LSN_FILE, "r");
@@ -245,64 +247,95 @@ int kv_recovery_redo (struct kv_ht *ht)
     last_checked_lsn_hex[8] = '\0';
     
     // find snapshot file
-    snprintf (snapshot_file_name, 100, "%s/snapshot_%s.kvdb", SNAPSHOT_DIR_NAME, last_checked_lsn_hex);
-    snapshot_file = fopen (snapshot_file_name, "r");
-    if (snapshot_file == NULL) {
-        // todo: error handling
-        perror ("snapshot file open error");
-        exit (1);
-    }
-    printf("filename: %s\n", snapshot_file_name);
-    
-    while (1) {
-        if (!fgets (line_buf, KV_RECOVERY_MAX_LINE_LEN, snapshot_file)) {
-            if (feof(snapshot_file))
-                break;
+    if (last_checked_lsn > 0) {
+        snprintf (snapshot_file_name, 100, "%s/snapshot_%s.kvdb", SNAPSHOT_DIR_NAME, last_checked_lsn_hex);
+        snapshot_file = fopen (snapshot_file_name, "r");
+        if (snapshot_file == NULL) {
             // todo: error handling
+            perror ("snapshot file open error");
             exit (1);
         }
-        key_len = 0;
-        val_len = 0;
-        for (int i = 0; i < KV_RECOVERY_MAX_LINE_LEN; ++i) {
-            ch = line_buf[i];
-            if (ch == ' ') {
-                key_len = i;
-            } else if (ch == '\n') {  // todo: check: why does this get '\n' at the EOF?
-                val_len = i - key_len - 1;
-                break;
+        while (1) {
+            if (!fgets (line_buf, KV_RECOVERY_MAX_LINE_LEN, snapshot_file)) {
+                if (feof(snapshot_file))
+                    break;
+                // todo: error handling
+                exit (1);
+            }
+            key_len = 0;
+            val_len = 0;
+            for (int i = 0; i < KV_RECOVERY_MAX_LINE_LEN; ++i) {
+                ch = line_buf[i];
+                if (ch == ' ') {
+                    key_len = i;
+                } else if (ch == '\n') {  // todo: check: why does this get '\n' at the EOF?
+                    val_len = i - key_len - 1;
+                    break;
+                }
+            }
+
+            k_data = (struct key_data *) malloc (sizeof (struct key_data));
+            k_data->key = (char *) malloc (key_len);
+            memcpy (k_data->key, line_buf, key_len);
+            k_data->key_len = key_len;
+
+            v_data = (struct val_data *) malloc (sizeof (struct val_data));
+            v_data->value = (char *) malloc (val_len);
+            memcpy (v_data->value, line_buf + key_len + 1, val_len);
+            v_data->val_len = val_len;
+
+            if (kv_ht_set (ht, k_data, v_data) != NULL) {
+                // todo: error handling
+                exit (1);
             }
         }
-        
-        k_data = (struct key_data *) malloc (sizeof (struct key_data));
-        k_data->key = (char *) malloc (key_len);
-        memcpy (k_data->key, line_buf, key_len);
-        k_data->key_len = key_len;
-        
-        v_data = (struct val_data *) malloc (sizeof (struct val_data));
-        v_data->value = (char *) malloc (val_len);
-        memcpy (v_data->value, line_buf + key_len + 1, val_len);
-        v_data->val_len = val_len;
-
-        if (kv_ht_set (ht, k_data, v_data) != NULL) {
-            // todo: error handling
-            exit (1);
-        }
+        fclose (snapshot_file);
     }
-    fclose (snapshot_file);
     
-    // redo from check to end
-        // read every line
+    // todo: perf: kv_recovery_get_log opens and closes recovery file in each call
+    lsn = last_checked_lsn;
     while (1) {
-        // if (1) {
-        //     old_v_data = kv_ht_get ();
-        //     old_kv = kv_ht_set (ht);
-        // } else {
-        //     old_kv = kv_ht_del ();
-        // }
+        ++lsn;
+        log_line = kv_recovery_get_log (lsn);
+        if (log_line == NULL) {
+            break;
+        }
+        if (log_line->log_type == KV_REC_UPDATE || log_line->log_type == KV_REC_CLR) {
+            if (log_line->new_len == 0) {  // if delete
+                kd.key = log_line->key;
+                kd.key_len = log_line->key_len;
+                old_kv = kv_ht_del (ht, &kd);
+                k_data = old_kv.key;
+                v_data = old_kv.value;
 
-        // free memory
+                if (k_data != NULL) {
+                    free (k_data->key);
+                    free (k_data);
+                }
+                if (v_data != NULL) {
+                    free (v_data->value);
+                    free (v_data);
+                }
+            } else {  // if update
+                k_data = (struct key_data *) malloc (sizeof (struct key_data));  // todo: fix: mem: malloc when already exists?
+                k_data->key_len = log_line->key_len;
+                k_data->key = malloc (k_data->key_len);
+                memcpy (k_data->key, log_line->key, k_data->key_len);
 
-        break;
+                v_data = (struct val_data *) malloc (sizeof (struct val_data));
+                v_data->val_len = log_line->new_len;
+                v_data->value = malloc (v_data->val_len);
+                memcpy (v_data->value, log_line->new_val, v_data->val_len);
+                
+                old_v_data = kv_ht_set (ht, k_data, v_data);
+                
+                if (old_v_data != NULL) {
+                    free (old_v_data->value);
+                    free (old_v_data);
+                }
+            }
+        }
+        kv_recovery_destroy_log_line (log_line);
     }
     return 0;
 }
@@ -637,7 +670,7 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
     uint32_t tx_id;
     char log_type_char[LOG_TYPE_LEN];
     enum kv_recovery_log_type log_type;
-    uint32_t undo_next_lsn;
+    uint32_t undo_next_lsn = 0;
 
     char len_hex[2];
     char *key;
@@ -700,7 +733,7 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
         log_type = KV_REC_END;
     }
     
-    if (log_type_char[0] == 'U') {
+    if (log_type == KV_REC_UPDATE || log_type == KV_REC_CLR) {
         memcpy (len_hex, line + pos, 2);
         pos += 2 + 1;
         key_len = from_2_digit_hex (len_hex);
@@ -737,7 +770,6 @@ struct kv_recovery_log_line* kv_recovery_get_log (lsn_id lsn)
             pos += 19;
         }
     } else {
-        undo_next_lsn = 0;
         key = NULL;
         key_len = 0;
         old_val = NULL;
