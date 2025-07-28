@@ -94,7 +94,7 @@ rollback 및 복구에 필요한 로그를 저장하는 파일. 타입 설명은
 | UPDATE_ | 데이터 갱신: key 길이, 이전 value 길이, 새 value 길이, key, 이전 value, 새 value |
 | COMMIT_ | 트랜잭션 커밋 |
 | ABORT__ | 트랜잭션 중단 |
-| CLR____ | 데이터 복구: 복구하는 로그 LSN, (이하 UPDATE_ 와 동일) |
+| CLR____ | 데이터 복구: 다음으로 복구해야하는 로그 LSN, (이하 UPDATE_ 와 동일) |
 | CHECK__ | 체크 포인트: 미완료 트랜잭션 수, [트랜잭션 id, 해당 트랜잭션의 마지막 LSN] 쌍 반복 |
 ```log
 LSN      prevLSN  TX_ID     type    {payload}
