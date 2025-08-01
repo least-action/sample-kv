@@ -2,7 +2,7 @@
 * database 및 시스템 프로그래밍 학습용 key value database.
 * 데이터베이스 시스템의 동시성 제어, 트랜잭션, 복구 등을 직접 구현한 프로젝트입니다.
 
-**개발 환경**: Ubuntu 22.04.5 LTS  
+**개발 환경**: Ubuntu 22.04.5 LTS, gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04), GNU Make 4.3  
 **기술 스택**: C, Linux System Programming, Python
 
 ## 빌드 및 실행
