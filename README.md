@@ -72,7 +72,7 @@ commit
     write  false  |   false
     ```
 * 2PL(2 Phase Lock) 구현으로 직렬성 보장. (Rigorous 2PL)
-* Rigorous(or strict) 2PL 구현으로 dirty read 를 금지하여 연쇄 복구를 방지.
+* Rigorous(or strict) 2PL 구현으로 dirty read 를 금지하여 회복 불가능 및 연쇄 복구를 방지.
 
 ### 2. REDO/UNDO 로그
 * REDO/UNDO 로그를 통해 트랜잭션 롤백.
